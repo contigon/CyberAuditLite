@@ -60,7 +60,7 @@ Domain Admin permissions.
             $goddiEXE = "$goddiDirectory\goddi-windows-amd64.exe"
             
         } else {
-            $goddiEXE = Download-Tool "goddi-windows-amd64.exe"
+            $goddiEXE = DownloadTool "goddi-windows-amd64.exe"
             $goddiDirectory = Split-Path $goddiEXE -Parent
         }
     }
@@ -80,8 +80,6 @@ Domain Admin permissions.
     $cmd = "$goddiEXE -username=`"$env:USERNAME`" -password=`"$Password`" -domain=`"$xDNSDOMAIN`" -dc=`"$DC`" -unsafe"
     Invoke-Expression $cmd
     Move-Item -Path $goddiDirectory\csv\* -Destination $ACQ -Force
-    read-host "Press ENTER to continue"
-    $null = start-Process -PassThru explorer $ACQ    
 }
 
 <#
@@ -176,10 +174,7 @@ when finished please copy the c:\ntdsdump directory to the Aquisition folder (NT
         winrs -r:$DC ntdsutil "ac i ntds" "ifm" "create sysvol full c:\ntdsdump\$currentTime" q q
         Copy-Item -Path $env:LOGONSERVER\c$\ntdsdump\$currentTime -Destination $ACQ\$currentTime -Recurse -Force
     }
-    $userInput = read-host "`n`nPress ENTER to continue, or type any latter to open aquisition folder"
-    if ($userInput -match '\w') {
-        $null = start-Process -PassThru explorer $ACQ\$currentTime
-    }
+
     Start-NTDSAuditTool "$ACQ\$currentTime"
 }
 
@@ -223,7 +218,7 @@ function Start-NTDSAuditTool {
             $NTDSAuditEXE = "$NTDSDirectory\NtdsAudit.exe"
             
         } else {
-            $NTDSAuditEXE = Download-Tool "NTDSAudit.exe"
+            $NTDSAuditEXE = DownloadTool "NTDSAudit.exe"
             $NTDSDirectory = Split-Path $NTDSAuditEXE -Parent
         }
     }
@@ -246,8 +241,6 @@ function Start-NTDSAuditTool {
         $_.context.PreContext + $_.line + $_.Context.PostContext
     } | Out-File $ACQ\DomainStatistics.txt
 
-    read-host "Press ENTER to continue"
-    $null = start-Process -PassThru explorer $ACQ
 }
 <#
 Function ACQA {
@@ -283,10 +276,12 @@ function Get-ToolsFolder {
 # Getting to DSInternals module from its zip, extract it directly to the place where local module are
 # Then imports the module for the current session
 function Install-DSInternalsModule {
-    $ZIPFilePath = "$PSScriptRoot\DSInternals.zip"
-    if (! (Test-Path "$ZIPFilePath")) {
-        Write-Host "[Failed] Cannot find DSInternals.zip" -ForegroundColor Red
-        $ZIPFilePath = Get-FileName -Extensions "*.exe"
+    
+    if (Get-ChildItem -path "$PSScriptRoot" -Filter "DSInternals.zip" -File -Recurse){
+        $ZIPFilePath = (Get-ChildItem -path "$PSScriptRoot" -Filter "DSInternals.zip" -File -Recurse)[0].FullName
+    }else {
+        Write-Host "[Failed] Cannot find DSInternals.zip, please select its zip file" -ForegroundColor Red
+        $ZIPFilePath = Get-FileName -Extensions "zip"
     }
     $ModuleDestination = ($env:PSModulePath -split ";" | Select-String "$env:USERPROFILE" -SimpleMatch).ToString()
     Unblock-File -Path "$ZIPFilePath"
@@ -321,7 +316,7 @@ If you dont have the program, press ENTER to Download it automaticly: " -Foregro
         if ($userInput -ieq "y") {
             $PingCastleFolder = Get-ToolsFolder "Pingcastle.exe"
         } else {
-            $PingCastleZIP = Download-Tool "PingCastle"
+            $PingCastleZIP = DownloadTool "PingCastle"
             $PingCastleZIPParent = Split-Path $PingCastleZIP -Parent
             Expand-Archive -Path $PingCastleZIP -DestinationPath $PingCastleZIPParent -Force
             $PingCastleFolder = $PingCastleZIPParent
@@ -348,8 +343,7 @@ If you dont have the program, press ENTER to Download it automaticly: " -Foregro
         Pop-Location
     }
     
-    read-host "Press ENTER to continue"
-    $null = start-Process -PassThru explorer $ACQ    
+ 
 }
 function Start-Testimo {
     Clear-Host
@@ -379,12 +373,15 @@ function Start-Testimo {
         Invoke-Testimo  -ExcludeSources DCDiagnostics -ReportPath $ACQ\Testimo.html
         $null = start-Process -PassThru explorer $ACQ
     }
-    read-host "Press ENTER to continue"
 }
 function Install-TestimoModules {
-    write-host "A windows will open to choose a file, Please select the ZIP file contains Testimo-Modules.zip"
-    Read-Host "Press ENTER to continue"
-    $ModulesZip = get-filename -Extensions "zip"
+    if (Get-ChildItem -Filter "TestimoAndDependecies.zip" -Recurse) {
+        $ModulesZip = (Get-ChildItem -Filter "TestimoAndDependecies.zip" -Recurse)[0].FullName
+    } else {
+        write-host "A windows will open to select a file, Please select the ZIP file contains Testimo-Modules.zip"
+        Read-Host "Press ENTER to continue"
+        $ModulesZip = get-filename -Extensions "zip"
+    }
     $ModuleDestination = ($env:PSModulePath -split ";" | Select-String "$env:USERPROFILE" -SimpleMatch).ToString()
     Expand-Archive -Path $ModulesZip -DestinationPath $ModuleDestination -Force
 
@@ -403,7 +400,7 @@ function Install-TestimoModules {
         Import-Module $_  -Force -Verbose
     }
 }
-function Download-Tool {
+function DownloadTool {
     param (
         [Parameter(Mandatory = $true)]
         [string]
@@ -413,6 +410,7 @@ function Download-Tool {
         "Goddi" { $ToolURL = "https://github.com/NetSPI/goddi/releases/download/v1.2/goddi-windows-amd64.exe" }
         "NTDSAudit" { $ToolURL = "https://github.com/Dionach/NtdsAudit/releases/download/v2.0.7/NtdsAudit.exe" }
         "PingCastle" { $ToolURL = "https://github.com/vletoux/pingcastle/releases/download/2.10.0.0/PingCastle_2.10.0.0.zip" }
+        "Testimo" {$ToolURL = "https://github.com/maros17/Downloads/blob/main/TestimoAndDependecies.zip"}
         Default {}
     }
     
@@ -423,14 +421,10 @@ function Download-Tool {
     
     $InventoryList.Add($ToolName) | Out-Null
 }
-<#
-function dl($url, $to) {
-    $wc = New-Object Net.Webclient
-    $wc.headers.add('Referer', (strip_filename $url))
-    $wc.Headers.Add('User-Agent', (Get-UserAgent))
-    $wc.downloadFile($url, $to)
+
+if (-not (CheckMachineRole)) {
+    break
 }
-#>
 
 $DC = ($env:LOGONSERVER).TrimStart("\\")
 [System.Collections.ArrayList] $global:InventoryList = New-Object System.Collections.ArrayList
@@ -439,5 +433,7 @@ Start-Goddi
 Get-NTDS
 Start-PingCastle
 Start-Testimo
-
+read-host "Press ENTER to continue"
+$ACQ = ACQBaseFolder
+$null = start-Process -PassThru explorer "$ACQ"
 stop-Transcript | out-null
