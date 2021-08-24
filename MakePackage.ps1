@@ -44,7 +44,7 @@ function Get-Tools {
         } else {
             $ToolLocalPath = "$Root\$ToolEXEName"            
         }
-        Write-Host "Downloading $ToolName from $ToolLocalPath" -ForegroundColor Magenta
+        Write-Host "Downloading $ToolName from $ToolURL" -ForegroundColor Magenta
         if ( dl $ToolURL $ToolLocalPath) {
             # This variable's propose is to indicate that at least on tool downloaded successfuly, and there are tools to compress
             $HadSuccesses = $true
