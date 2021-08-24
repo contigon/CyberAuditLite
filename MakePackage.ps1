@@ -22,10 +22,10 @@ function Get-Tools {
                 $ToolURL = "https://github.com/maros17/GoGetCyberAuditLite/raw/main/TestimoAndDependecies.zip"
             }
             "CyberAuditLiteFD" {
-                $ToolURL = "https://github.com/maros17/GoGetCyberAuditLite/blob/main/CyberAuditLiteFD.ps1" 
+                $ToolURL = "https://raw.githubusercontent.com/maros17/GoGetCyberAuditLite/main/CyberAuditLiteFD.ps1" 
             }
             "CyberFunctions" {
-                $ToolURL = "https://github.com/maros17/GoGetCyberAuditLite/blob/main/CyberFunctions.psm1"
+                $ToolURL = "https://raw.githubusercontent.com/maros17/GoGetCyberAuditLite/main/CyberFunctions.psm1"
             }
             Default {}
         }
@@ -75,7 +75,7 @@ Function Get-Folder($initialDirectory) {
     $Topmost = New-Object System.Windows.Forms.Form
     $Topmost.TopMost = $True
    $Topmost.MinimizeBox = $True
-#$FolderBrowserDialog.
+# $FolderBrowserDialog.
     if ( $FolderBrowserDialog.ShowDialog($Topmost) -eq "Cancel")
         {Write-Error "ERROR: Cannot continue without a folder" -ErrorAction Stop}
     return $FolderBrowserDialog.SelectedPath
@@ -83,4 +83,5 @@ Function Get-Folder($initialDirectory) {
 Get-Tools
 Compress-All
 
+Write-Host "Congrats, you have a zip file in the directory you selected. Insert the zip file into your network" -BackgroundColor Green -ForegroundColor Black
 Stop-Transcript | Out-Null
