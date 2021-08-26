@@ -11,11 +11,10 @@
     - RSAT
 #>
 
-start-Transcript -path $PSScriptRoot\CyberAuditFDPhase.Log -Force -append
+start-Transcript -path $PSScriptRoot\CyberAuditFDPhase.Log -Force -append | Out-Null
 Import-Module $PSScriptRoot\CyberFunctions.psm1
 
 function Start-Goddi {
-    # Clear-Host
     $help = @"
 
 goddi
@@ -82,54 +81,7 @@ Domain Admin permissions.
     Move-Item -Path $goddiDirectory\csv\* -Destination $ACQ -Force
 }
 
-<#
-function Sharphound {
-    Clear-Host
-    $help = @"
-    
-    Sharphound
-    ----------
-    
-    Data Collector for the BloodHound Project
-    
-    Sharphound must be run from the context of a domain user, either directly 
-    through a logon or through another method such as RUNAS.
-    
-    CollectionMethod :
-    - Default - group membership, domain trust, local group, session, ACL, object property and SPN target collection
-    - Group - group membership collection
-    - LocalAdmin - local admin collection
-    - RDP - Remote Desktop Users collection
-    - DCOM - Distributed COM Users collection
-    - PSRemote - Remote Management Users collection
-    - GPOLocalGroup - local admin collection using Group Policy Objects
-    - Session - session collection
-    - ComputerOnly - local admin, RDP, DCOM and session collection
-    - LoggedOn - privileged session collection (requires admin rights on target systems)
-    - Trusts - domain trust enumeration
-    - ACL - collection of ACLs
-    - Container - collection of Containers
-    
-    In order for this script to succeed you need to have a user with 
-    Domain Admin permissions.
-    
-    "@
-    Write-Host $help
-    $ACQ = ACQ("Sharphound")
-    $SharpHoundModulePath = Get-ToolsFolder SharpHound.ps1
-    Import-Module "$SharpHoundModulePath\SharpHound.ps1"
-    Invoke-BloodHound -CollectionMethod All, GPOLocalGroup, LoggedOn -OutputDirectory $ACQ
-    $MaXLoop = read-host "Choose Maximum loop time for session collecting task (eg. 30m)"
-    Invoke-BloodHound -CollectionMethod SessionLoop -MaxLoopTime $MaXLoop -OutputDirectory $ACQ
-    Invoke-BloodHound -SearchForeset -CollectionMethod All, GPOLocalGroup, LoggedOn -OutputDirectory $ACQ
-    read-host "Press ENTER to continue"
-    $null = start-Process -PassThru explorer $ACQ    
-}
-#>
-
-
 function Get-NTDS {
-    Clear-Host
     $help = @"
     
 NTDS and SYSTEM hive remote aquisition
@@ -184,7 +136,6 @@ function Start-NTDSAuditTool {
         [string]
         $NTDS_ACQ_Path
     )
-    Clear-Host
     $help = @"
     
     hash dumping
@@ -224,7 +175,6 @@ function Start-NTDSAuditTool {
     }
     # Move all the files from the dump to the main directory
     Get-ChildItem -Path $ACQ -Recurse -File | Move-Item -Destination $ACQ -Force
-    #NtdsAudit $ACQ\ntds.dit -s $ACQ\SYSTEM  -p  $ACQ\pwdump-with-history.txt -u  $ACQ\user-dump.csv --debug --history-hashes
     $cmd = "$NTDSAuditEXE $ACQ\ntds.dit -s $ACQ\SYSTEM  -p  $ACQ\pwdump.txt -u  $ACQ\user-dump.csv --debug"
     Invoke-Expression $cmd
     Install-DSInternalsModule
@@ -265,23 +215,35 @@ function Get-ToolsFolder {
     $Path = Get-Folder -Description "Choose the folder that contains $ToolEXEName files" -DisableNewFolder -ReturnCancelIfCanceled
     while (($Path -ne "Cancel") -and (-not (Test-Path "$Path\$ToolEXEName"))) {
         Write-Host "Cannot find the file `"$ToolEXEName`"" -ForegroundColor Red 
-        $Path = Get-Folder -Description "Choose the folder that contains goddi's files" -DisableNewFolder -ReturnCancelIfCanceled
+        $Path = Get-Folder -Description "Choose the folder that contains $ToolEXEName files" -DisableNewFolder -ReturnCancelIfCanceled
     }
     if ($Path -eq "Cancel") { 
         Write-Error -Message "File selection canceled, cannot continue!" -ErrorAction Stop
     }
-    return $Path 
-    
+    return $Path     
 }
 # Getting to DSInternals module from its zip, extract it directly to the place where local module are
 # Then imports the module for the current session
 function Install-DSInternalsModule {
     
-    if (Get-ChildItem -path "$PSScriptRoot" -Filter "DSInternals.zip" -File -Recurse){
+    if (Get-ChildItem -path "$PSScriptRoot" -Filter "DSInternals.zip" -File -Recurse) {
         $ZIPFilePath = (Get-ChildItem -path "$PSScriptRoot" -Filter "DSInternals.zip" -File -Recurse)[0].FullName
-    }else {
+    } else {
         Write-Host "[Failed] Cannot find DSInternals.zip, please select its zip file" -ForegroundColor Red
-        $ZIPFilePath = Get-FileName -Extensions "zip"
+        Write-Host "You can select the file location, or Download it automaticly" -ForegroundColor Red 
+        $userInput = Read-Host "Press ENTER to download it automaticly, or type [L] to locate it locally"
+        if ($userInput -eq "L") {                
+            $ZIPFilePath = Get-FileName -Extensions "zip"
+        } else {
+            if (!(Get-PackageProvider -Name nuget)) {
+                Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+            }
+            if (!(Get-Module -Name PowerShellGet)) {
+                Install-Module -Name PowerShellGet -Force
+            }
+            Install-Module -Name DSInternals
+            return
+        }            
     }
     $ModuleDestination = ($env:PSModulePath -split ";" | Select-String "$env:USERPROFILE" -SimpleMatch).ToString()
     Unblock-File -Path "$ZIPFilePath"
@@ -291,7 +253,6 @@ function Install-DSInternalsModule {
 
 
 function Start-PingCastle {
-    Clear-Host
     $help = @"
 
     PIngCastle
@@ -328,7 +289,6 @@ If you dont have the program, press ENTER to Download it automaticly: " -Foregro
         push-Location $ACQ
         $cmd = "robocopy $PingCastleFolder $ACQ /e /njh"
         Invoke-Expression $cmd
-        # Copy-Item "$PingCastleFolder\*.*" $ACQ -Recurse -Force
 
         Start-Job -Name "full" -ScriptBlock { Push-Location $using:ACQ; cmd /c start .\PingCastle  --server * --no-enum-limit --carto --healthcheck; Pop-Location }
         Wait-Job -Name "full"
@@ -337,16 +297,14 @@ If you dont have the program, press ENTER to Download it automaticly: " -Foregro
         $checks = @("antivirus", "corruptADDatabase", "laps_bitlocker", "localadmin", "nullsession", "nullsession-trust", "share", "smb", "spooler", "startup")
         foreach ($check in $checks) {
             Start-Job -Name "scan" -ScriptBlock { Push-Location $using:ACQ; cmd /c start .\PingCastle --scanner $check; Pop-Location }
-            Wait-Job -Name "scan"      
-        }
-        
+            Wait-Job -Name "scan"       
+        }        
         Pop-Location
     }
     
  
 }
 function Start-Testimo {
-    Clear-Host
     $help = @"
 
     Testimo
@@ -365,22 +323,37 @@ function Start-Testimo {
             
 "@
     Write-Host $help 
+    Write-Host $help 
+    Write-Host $help 
     Install-TestimoModules
   
     $ACQ = ACQ("Testimo")
     if (checkRsat) {
         import-module activedirectory ; Get-ADDomainController -Filter * | Select-Object Name, ipv4Address, OperatingSystem, site | Sort-Object -Property Name
         Invoke-Testimo  -ExcludeSources DCDiagnostics -ReportPath $ACQ\Testimo.html
-        $null = start-Process -PassThru explorer $ACQ
     }
 }
 function Install-TestimoModules {
     if (Get-ChildItem -Filter "TestimoAndDependecies.zip" -Recurse) {
         $ModulesZip = (Get-ChildItem -Filter "TestimoAndDependecies.zip" -Recurse)[0].FullName
     } else {
-        write-host "A windows will open to select a file, Please select the ZIP file contains Testimo-Modules.zip"
-        Read-Host "Press ENTER to continue"
-        $ModulesZip = get-filename -Extensions "zip"
+        Write-Host "[Failed] Cannot find DSInternals.zip, please select its zip file" -ForegroundColor Red
+        Write-Host "You can select the file location, or Download it automaticly" -ForegroundColor Red 
+        $userInput = Read-Host "Press ENTER to download it automaticly, or type [L] to locate it localy"
+        if ($userInput -eq "L") {       
+            write-host "A windows will open to select a file, Please select the ZIP file contains Testimo-Modules.zip"
+            Read-Host "Press ENTER to continue"
+            $ModulesZip = get-filename -Extensions "zip"
+        } else {
+            if (!(Get-PackageProvider -Name nuget)) {
+                Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+            }
+            if (!(Get-Module -Name PowerShellGet)) {
+                Install-Module -Name PowerShellGet -Force
+            }
+            Install-Module -Name Testimo -force
+            return
+        }
     }
     $ModuleDestination = ($env:PSModulePath -split ";" | Select-String "$env:USERPROFILE" -SimpleMatch).ToString()
     Expand-Archive -Path $ModulesZip -DestinationPath $ModuleDestination -Force
@@ -410,24 +383,69 @@ function DownloadTool {
         "Goddi" { $ToolURL = "https://github.com/NetSPI/goddi/releases/download/v1.2/goddi-windows-amd64.exe" }
         "NTDSAudit" { $ToolURL = "https://github.com/Dionach/NtdsAudit/releases/download/v2.0.7/NtdsAudit.exe" }
         "PingCastle" { $ToolURL = "https://github.com/vletoux/pingcastle/releases/download/2.10.0.0/PingCastle_2.10.0.0.zip" }
-        "Testimo" {$ToolURL = "https://github.com/maros17/Downloads/blob/main/TestimoAndDependecies.zip"}
+        "Testimo" { $ToolURL = "https://github.com/maros17/Downloads/raw/main/TestimoAndDependecies.zip" }
         Default {}
-    }
-    
+    }    
     $ToolEXEName = fname $ToolURL
     New-Item  -Path "$PSScriptRoot\$ToolName"  -ItemType "Directory" -Force | out-null
     dl $ToolURL "$PSScriptRoot\$ToolName\$ToolEXEName"
-    return "$PSScriptRoot\$ToolName\$ToolEXEName"
-    
-    $InventoryList.Add($ToolName) | Out-Null
+    return "$PSScriptRoot\$ToolName\$ToolEXEName"    
 }
-
-if (-not (CheckMachineRole)) {
-    break
+function Connect-Domain {
+    write-Host "Your computer is not connected to any domain. Do you want to register to a domain?" -ForegroundColor Yellow 
+    do {   
+        write-Host "To register the computer enter the name of the domain. Leave empty to exit" -ForegroundColor Yellow 
+        write-Host "Please make sure you enter the full name of the domain, i.e. `"Domain.Local`": " -ForegroundColor Yellow -NoNewline
+        $domain = Read-Host
+        if ([string]::IsNullOrEmpty($domain)) { return }
+        $username = read-host -Prompt "Enter an admin user name which have enough permissions"
+        $password = Read-Host -Prompt "Enter password for $user" -AsSecureString
+        $username = $domain + "\" + $username
+        $credential = New-Object System.Management.Automation.PSCredential($username, $password)
+        if (-not((Add-Computer -DomainName $domain -Credential $credential -PassThru -Force -Verbose).HasSucceeded)) {
+            Write-Host "Failed to register the computer to the domain `"$domain`" " -ForegroundColor Red
+            Write-Host "Check the properties and try again" -ForegroundColor Yellow
+            Write-Host "If you want to try again, prass [A]: " -ForegroundColor Yellow -NoNewline
+            $userInput = Read-Host
+            if ($userInput -eq "A") { $Continue = $true }
+            else { return }
+        } else {
+            $Continue = $false
+        }
+    }while ($Continue)
+    Write-Host "We have to restart your computer now to apply the changes and let you to login to windows with domain-admin user" -ForegroundColor Yellow
+    Write-Host "Do you want to restart your computer now or do it manually?" -ForegroundColor Yellow
+    Write-Host "To restart your computer right now, enter `"restart`": " -ForegroundColor Yellow -NoNewline
+    $userInput = Read-Host 
+    if ($userInput -eq "restart") { Restart-Computer -Force }
+    else { return }
+    
+}
+function Test-DomainAdmin {
+    # 1-liner to check members of the "Domain Admins" Group
+    try {
+        $DomainAdmins = Get-ADGroupMember -Identity "Domain Admins" -Recursive | ForEach-Object { Get-ADUser -Identity $_.distinguishedName }  | Where-Object { $_.Enabled -eq $True }  | Select-Object  -ExpandProperty SamAccountName
+        if ($DomainAdmins.Contains($env:USERNAME)) {
+            Write-Host "You have Domain-Admin permissions" -ForegroundColor Green
+            return $true
+        } else {
+            Write-Host "To run the tools you need to run script by a Domain-Admin user"
+            return $false
+        }    
+    } catch { return $false }
+}
+# Check if RSAT is installed
+if (CheckRSAT) { Import-Module ActiveDirectory }
+else { return}
+# Check if the machine is in a domain. If not, suggests to connect to a domain
+if (-not (CheckMachineRole)) { Connect-Domain }
+# Ensure current user have Domain-Admin privileges
+if (-not (Test-DomainAdmin)) { 
+    Write-Host "To run the tools you need to run script by a Domain-Admin user"    
+    return 
 }
 
 $DC = ($env:LOGONSERVER).TrimStart("\\")
-[System.Collections.ArrayList] $global:InventoryList = New-Object System.Collections.ArrayList
 
 Start-Goddi
 Get-NTDS
