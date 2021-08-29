@@ -39,8 +39,8 @@ function Get-Tools {
         }
         $ToolEXEName = Split-Path $ToolURL -Leaf
         if ($ToolEXEName -notmatch ".*.ps") {
-            New-Item  -Path "$Root\$ToolName"  -ItemType "Directory" -Force | out-null
-            $ToolLocalPath = "$Root\$ToolName\$ToolEXEName"
+            New-Item  -Path "$Root\Tools\$ToolName"  -ItemType "Directory" -Force | out-null
+            $ToolLocalPath = "$Root\Tools\$ToolName\$ToolEXEName"
         } else {
             $ToolLocalPath = "$Root\$ToolEXEName"            
         }
