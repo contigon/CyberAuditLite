@@ -147,7 +147,7 @@ function killApp {
 
 #check if RSAT is installed
 function checkRsat {
-    If ((Get-Module -Name ActiveDirectory -ListAvailable) -ne $null) {
+    If (($null -ne (Get-Module -Name ActiveDirectory -ListAvailable)) -and ($null -ne (Get-Module -Name DnsServer -ListAvailable))) {
         Write-Host "[Success] Rsat in installed" -ForegroundColor Green
         Return $true
     } else {
