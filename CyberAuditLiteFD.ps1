@@ -8,9 +8,14 @@
     - PingCastle
     - Testimo modules and all its dependent modules
     - CyberFunctions module
-    - RSAT
+    - RSAT:
+        - DNS server
+        - Active Directory
+        - Server Manager
+        - GroupPolicy
 #>
-
+#Requires -RunAsAdministrator
+#Requires -Version 5.1
 start-Transcript -path $PSScriptRoot\CyberAuditFDPhase.Log -Force -append | Out-Null
 Import-Module $PSScriptRoot\CyberFunctions.psm1
 
@@ -46,7 +51,7 @@ In order for this script to succeed you need to have a user with
 Domain Admin permissions.
         
 "@
-    Write-Host $help
+    #   Write-Host $help
     if ((Get-ChildItem -Filter "goddi-windows-amd64.exe" -Path $PSScriptRoot  -Recurse) ) {
         $goddiEXE = (Get-ChildItem -Filter "goddi-windows-amd64.exe" -Path $PSScriptRoot  -Recurse)[0].FullName
         $goddiDirectory = Split-Path $goddiEXE -Parent
@@ -66,17 +71,12 @@ Domain Admin permissions.
     
     $ACQ = ACQ("goddi")
     Write-Host "You are running as user: $env:USERDNSDOMAIN\$env:USERNAME"
-    $securePwd = Read-Host "Input a Domain Admin password" -AsSecureString
-    $Password = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePwd))
-    while ([string]::IsNullOrEmpty($Password)) {
-        Write-Host "Cannot continue without a password" -ForegroundColor Red
-        $Password = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePwd))
-    }
+    $UnsecuredPassword = $global:Credential.GetNetworkCredential().password
     if ([string]::IsNullOrEmpty($env:USERDNSDOMAIN)) { 
         $xDNSDOMAIN = Read-Host "Enter the name of the domain full name (etc: domain.local)"
     } else { $xDNSDOMAIN = $env:USERDNSDOMAIN }
     $DC = ($env:LOGONSERVER).TrimStart("\\")
-    $cmd = "$goddiEXE -username=`"$env:USERNAME`" -password=`"$Password`" -domain=`"$xDNSDOMAIN`" -dc=`"$DC`" -unsafe"
+    $cmd = "$goddiEXE -username=`"$credential.username`" -password=`"$UnsecuredPassword`" -domain=`"$xDNSDOMAIN`" -dc=`"$DC`" -unsafe"
     Invoke-Expression $cmd
     Move-Item -Path $goddiDirectory\csv\* -Destination $ACQ -Force
 }
@@ -96,9 +96,10 @@ Note: This script supports AD running on Windows Servers 2012 and up,
       on windows 2003/2008 we will show the manual instructions. 
         
 "@
-    Write-Host $help
+    # Write-Host $help
     $ACQ = ACQ("NTDS")
-    $winVer = Invoke-Command -ComputerName $DC -ScriptBlock { (Get-WmiObject -class Win32_OperatingSystem).Caption } -credential $cred
+    # $credential = New-Object System.Management.Automation.PSCredential($username, $password)
+    $winVer = Invoke-Command -ComputerName $DC -ScriptBlock { (Get-WmiObject -class Win32_OperatingSystem).Caption } -credential $credential
     if ($winVer.contains("2003") -or $winVer.contains("2008")) {
         Write-Host "The domain server is " $winVer -ForegroundColor Red
         $block = @"
@@ -124,10 +125,12 @@ when finished please copy the c:\ntdsdump directory to the Aquisition folder (NT
         Write-Host "Please wait untill the backup process is completed" -ForegroundColor Green
         remove-item $env:LOGONSERVER\c$\ntdsdump -Recurse -ErrorAction SilentlyContinue
         winrs -r:$DC ntdsutil "ac i ntds" "ifm" "create sysvol full c:\ntdsdump\$currentTime" q q
-        Copy-Item -Path $env:LOGONSERVER\c$\ntdsdump\$currentTime -Destination $ACQ\$currentTime -Recurse -Force
+        Copy-Item -Path $env:LOGONSERVER\c$\ntdsdump\$currentTime -Destination $ACQ -Recurse -Force -Container:$false -Filter *.*
+        Get-ChildItem -Path "$ACQ\" -directory -Recurse | Remove-Item -Force -Recurse
+
     }
 
-    Start-NTDSAuditTool "$ACQ\$currentTime"
+    Start-NTDSAuditTool "$ACQ"
 }
 
 function Start-NTDSAuditTool {
@@ -155,7 +158,7 @@ function Start-NTDSAuditTool {
     SYSTEM registry hive if dumping password hashes
 
 "@
-    write-host $help
+    # write-host $help
     $ACQ = $NTDS_ACQ_Path
     if ((Get-ChildItem -Filter "NTDSAudit.exe" -Path $PSScriptRoot  -Recurse) ) {
         $NTDSAuditEXE = (Get-ChildItem -Filter "NTDSAudit.exe" -Path $PSScriptRoot  -Recurse)[0].FullName
@@ -179,7 +182,6 @@ function Start-NTDSAuditTool {
     Invoke-Expression $cmd
     Install-DSInternalsModule
     $bk = Get-BootKey -SystemHivePath $ACQ\SYSTEM
-    #$fileFormat = @("Ophcrack","HashcatNT","HashcatLM","JohnNT","JohnLM")
     $fileFormat = @("Ophcrack")
     foreach ($f in $fileFormat) {
         Write-Host "[Success] Exporting hashes to $f format" -ForegroundColor Green
@@ -192,19 +194,6 @@ function Start-NTDSAuditTool {
     } | Out-File $ACQ\DomainStatistics.txt
 
 }
-<#
-Function ACQA {
-    Param ($dir)
-    $ACQdir = ("$AcqBaseFolder\$dir").Replace("//", "/")
-    if (Test-Path -Path $ACQdir) {
-        Write-Host "[Note] $ACQdir folder already exsits, this will not affect the process" -ForegroundColor Gray
-    } else {
-        $ACQdir = New-Item -Path $AcqBaseFolder -Name $dir -ItemType "directory" -Force
-        write-host "$ACQdir was created successfuly" -ForegroundColor Green
-    }
-    Return $ACQdir
-}
-#>
     
 function Get-ToolsFolder {
     param (
@@ -248,9 +237,8 @@ function Install-DSInternalsModule {
     $ModuleDestination = ($env:PSModulePath -split ";" | Select-String "$env:USERPROFILE" -SimpleMatch).ToString()
     Unblock-File -Path "$ZIPFilePath"
     Expand-Archive -Path "$ZIPFilePath" -DestinationPath "$ModuleDestination\" -Force -Verbose
-    Import-Module DSInternals -Verbose
+    Import-Module DSInternals
 }
-
 
 function Start-PingCastle {
     $help = @"
@@ -266,7 +254,7 @@ function Start-PingCastle {
     Domain Admin permissions.
             
 "@
-    Write-Host $help
+    #   Write-Host $help
     $ACQ = ACQ("PingCastle")
     if ((Get-ChildItem -Filter "pingcastle.exe" -Path $PSScriptRoot  -Recurse) ) {
         $PingCastleFolder = (Get-ChildItem -Filter "pingcastle.exe" -Path $PSScriptRoot  -Recurse)[0].DirectoryName
@@ -281,10 +269,8 @@ If you dont have the program, press ENTER to Download it automaticly: " -Foregro
             $PingCastleZIPParent = Split-Path $PingCastleZIP -Parent
             Expand-Archive -Path $PingCastleZIP -DestinationPath $PingCastleZIPParent -Force
             $PingCastleFolder = $PingCastleZIPParent
-        }
-        
+        }        
     }
-
     Invoke-Command -ScriptBlock {
         push-Location $ACQ
         $cmd = "robocopy $PingCastleFolder $ACQ /e /njh"
@@ -301,8 +287,7 @@ If you dont have the program, press ENTER to Download it automaticly: " -Foregro
         }        
         Pop-Location
     }
-    
- 
+    Get-ChildItem -Path $ACQ -Exclude "ad*" -Force | Remove-Item -Force
 }
 function Start-Testimo {
     $help = @"
@@ -322,24 +307,22 @@ function Start-Testimo {
     Domain Admin permissions.
             
 "@
-    Write-Host $help 
-    Write-Host $help 
-    Write-Host $help 
+    #  Write-Host $help 
     Install-TestimoModules
   
     $ACQ = ACQ("Testimo")
     if (checkRsat) {
         import-module activedirectory ; Get-ADDomainController -Filter * | Select-Object Name, ipv4Address, OperatingSystem, site | Sort-Object -Property Name
-        Invoke-Testimo  -ExcludeSources DCDiagnostics -ReportPath $ACQ\Testimo.html
+        Invoke-Testimo  -ExcludeSources DCDiagnostics -ReportPath $ACQ\Testimo.html -HideHTML
     }
 }
 function Install-TestimoModules {
-    if (Get-ChildItem -Filter "TestimoAndDependecies.zip" -Recurse) {
-        $ModulesZip = (Get-ChildItem -Filter "TestimoAndDependecies.zip" -Recurse)[0].FullName
+    if (Get-ChildItem -Path "$PSScriptRoot" -Filter "TestimoAndDependecies.zip" -Recurse) {
+        $ModulesZip = (Get-ChildItem -Path "$PSScriptRoot" -Filter "TestimoAndDependecies.zip" -Recurse)[0].FullName
     } else {
         Write-Host "[Failed] Cannot find DSInternals.zip, please select its zip file" -ForegroundColor Red
         Write-Host "You can select the file location, or Download it automaticly" -ForegroundColor Red 
-        $userInput = Read-Host "Press ENTER to download it automaticly, or type [L] to locate it localy"
+        $userInput = Read-Host "Press ENTER to download it automaticly, or type [L] to locate it locally"
         if ($userInput -eq "L") {       
             write-host "A windows will open to select a file, Please select the ZIP file contains Testimo-Modules.zip"
             Read-Host "Press ENTER to continue"
@@ -370,7 +353,7 @@ function Install-TestimoModules {
         "testimo"
     )
     foreach ($_ in $Modules) {
-        Import-Module $_  -Force -Verbose
+        Import-Module $_  -Force
     }
 }
 function DownloadTool {
@@ -391,6 +374,7 @@ function DownloadTool {
     dl $ToolURL "$PSScriptRoot\$ToolName\$ToolEXEName"
     return "$PSScriptRoot\$ToolName\$ToolEXEName"    
 }
+#TODO - check how to convert the "return" in the function to something that exits the script
 function Connect-Domain {
     write-Host "Your computer is not connected to any domain. Do you want to register to a domain?" -ForegroundColor Yellow 
     do {   
@@ -398,10 +382,8 @@ function Connect-Domain {
         write-Host "Please make sure you enter the full name of the domain, i.e. `"Domain.Local`": " -ForegroundColor Yellow -NoNewline
         $domain = Read-Host
         if ([string]::IsNullOrEmpty($domain)) { return }
-        $username = read-host -Prompt "Enter an admin user name which have enough permissions"
-        $password = Read-Host -Prompt "Enter password for $user" -AsSecureString
         $username = $domain + "\" + $username
-        $credential = New-Object System.Management.Automation.PSCredential($username, $password)
+        #     $credential = New-Object System.Management.Automation.PSCredential($username, $password)
         if (-not((Add-Computer -DomainName $domain -Credential $credential -PassThru -Force -Verbose).HasSucceeded)) {
             Write-Host "Failed to register the computer to the domain `"$domain`" " -ForegroundColor Red
             Write-Host "Check the properties and try again" -ForegroundColor Yellow
@@ -410,6 +392,7 @@ function Connect-Domain {
             if ($userInput -eq "A") { $Continue = $true }
             else { return }
         } else {
+            Write-Host "Successfuly connected to domain: `"$domain`"" -ForegroundColor Green            
             $Continue = $false
         }
     }while ($Continue)
@@ -418,14 +401,13 @@ function Connect-Domain {
     Write-Host "To restart your computer right now, enter `"restart`": " -ForegroundColor Yellow -NoNewline
     $userInput = Read-Host 
     if ($userInput -eq "restart") { Restart-Computer -Force }
-    else { return }
-    
+    else { return }    
 }
 function Test-DomainAdmin {
-    # 1-liner to check members of the "Domain Admins" Group
+    # Check members of the "Domain Admins" Group
     try {
         $DomainAdmins = Get-ADGroupMember -Identity "Domain Admins" -Recursive | ForEach-Object { Get-ADUser -Identity $_.distinguishedName }  | Where-Object { $_.Enabled -eq $True }  | Select-Object  -ExpandProperty SamAccountName
-        if ($DomainAdmins.Contains($env:USERNAME)) {
+        if ($DomainAdmins.Contains($credential.username)) {
             Write-Host "You have Domain-Admin permissions" -ForegroundColor Green
             return $true
         } else {
@@ -434,9 +416,74 @@ function Test-DomainAdmin {
         }    
     } catch { return $false }
 }
+
+function Set-Creds {    
+    $global:Credential = Get-Credential -Message "Enter an admin user name which have Domain-Admin permissions, include the domain prefix"
+    while (-not(Test-Cred $Credential)) {
+        $global:Credential = Get-Credential -Message "User or password are wrong
+Enter an admin user name which have Domain-Admin permissions"
+    }    
+    $global:username = $Credential.UserName
+    $global:password = $Credential.Password       
+}
+function Test-Cred {
+           
+    [CmdletBinding()]
+    [OutputType([boolean])] 
+       
+    Param ( 
+        [Parameter( 
+            Mandatory = $false, 
+            ValueFromPipeLine = $true, 
+            ValueFromPipelineByPropertyName = $true
+        )] 
+        [Alias( 
+            'PSCredential'
+        )] 
+        [ValidateNotNull()] 
+        [System.Management.Automation.PSCredential]
+        [System.Management.Automation.Credential()] 
+        $Credentials
+    )
+    $Domain = $null
+    $Root = $null
+    $Username = $null
+    $Password = $null
+      
+    If ($null -eq $Credentials) {
+        Try {
+            $Credentials = Get-Credential "domain\$env:username" -ErrorAction Stop
+        } Catch {
+            $ErrorMsg = $_.Exception.Message
+            Write-Warning "Failed to validate credentials: $ErrorMsg "
+            Pause
+            Break
+        }
+    }
+      
+    # Checking module
+    Try {
+        # Split username and password
+        $Username = $credentials.username
+        $Password = $credentials.GetNetworkCredential().password
+  
+        # Get Domain
+        $Root = "LDAP://" + ([ADSI]'').distinguishedName
+        $Domain = New-Object System.DirectoryServices.DirectoryEntry($Root, $UserName, $Password)
+    } Catch {
+        $_.Exception.Message
+        Continue
+    }
+  
+    If (!$domain) { Write-Warning "Something went wrong" }
+    Else { return ($null -ne $domain.name) }
+}
+$global:username = $null
+$global:password = $null
 # Check if RSAT is installed
-if (CheckRSAT) { Import-Module ActiveDirectory }
-else { return}
+if (CheckRSAT) { Import-Module ActiveDirectory -Force }
+else { return }
+Set-Creds
 # Check if the machine is in a domain. If not, suggests to connect to a domain
 if (-not (CheckMachineRole)) { Connect-Domain }
 # Ensure current user have Domain-Admin privileges
@@ -451,7 +498,6 @@ Start-Goddi
 Get-NTDS
 Start-PingCastle
 Start-Testimo
-read-host "Press ENTER to continue"
 $ACQ = ACQBaseFolder
 $null = start-Process -PassThru explorer "$ACQ"
 stop-Transcript | out-null
