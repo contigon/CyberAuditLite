@@ -76,7 +76,7 @@ Domain Admin permissions.
         $xDNSDOMAIN = Read-Host "Enter the name of the domain full name (etc: domain.local)"
     } else { $xDNSDOMAIN = $env:USERDNSDOMAIN }
     $DC = ($env:LOGONSERVER).TrimStart("\\")
-    $cmd = "$goddiEXE -username=`"$credential.username`" -password=`"$UnsecuredPassword`" -domain=`"$xDNSDOMAIN`" -dc=`"$DC`" -unsafe"
+    $cmd = "$goddiEXE -username=`"$username`" -password=`"$UnsecuredPassword`" -domain=`"$xDNSDOMAIN`" -dc=`"$DC`" -unsafe"
     Invoke-Expression $cmd
     Move-Item -Path $goddiDirectory\csv\* -Destination $ACQ -Force
 }
@@ -123,7 +123,7 @@ when finished please copy the c:\ntdsdump directory to the Aquisition folder (NT
         $cmd = 'Get-Date -Format "yyyyMMdd-HHmm"'
         $currentTime = Invoke-Expression $cmd
         Write-Host "Please wait untill the backup process is completed" -ForegroundColor Green
-        remove-item $env:LOGONSERVER\c$\ntdsdump -Recurse -ErrorAction SilentlyContinue
+   #     remove-item $env:LOGONSERVER\c$\ntdsdump -Recurse -ErrorAction SilentlyContinue
         winrs -r:$DC ntdsutil "ac i ntds" "ifm" "create sysvol full c:\ntdsdump\$currentTime" q q
         Copy-Item -Path $env:LOGONSERVER\c$\ntdsdump\$currentTime -Destination $ACQ -Recurse -Force -Container:$false -Filter *.*
         Get-ChildItem -Path "$ACQ\" -directory -Recurse | Remove-Item -Force -Recurse
@@ -287,6 +287,7 @@ If you dont have the program, press ENTER to Download it automaticly: " -Foregro
         }        
         Pop-Location
     }
+    Get-Job | Wait-Job
     Get-ChildItem -Path $ACQ -Exclude "ad*" -Force | Remove-Item -Force
 }
 function Start-Testimo {
