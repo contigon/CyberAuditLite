@@ -147,11 +147,20 @@ function killApp {
 
 #check if RSAT is installed
 function checkRsat {
-    If (($null -ne (Get-Module -Name ActiveDirectory -ListAvailable)) -and ($null -ne (Get-Module -Name DnsServer -ListAvailable))) {
-        Write-Host "[Success] Rsat in installed" -ForegroundColor Green
+    $RSAT_Modules = @("ActiveDirectory", "DnsServer", "GroupPolicy", "ServerManager")
+    [System.Collections.ArrayList]$Missing = @() 
+    foreach ($Module in $RSAT_Modules) {
+        if ($null -eq (Get-Module -Name "$Module" -ListAvailable)) {
+            $Missing.Add($Module) | Out-Null
+        }     
+    }
+    If ($Missing.Count -eq 0) {
+        Write-Host "[Success] Rsat is installed" -ForegroundColor Green
         Return $true
     } else {
-        Write-Host "[Failures] Rsat in  not installed" -ForegroundColor red
+        Write-Host "[Failures] Rsat is not installed properly, these modules is missing: " -ForegroundColor red
+        $string = $Missing -join ', '
+        Write-Host $string -ForegroundColor Red
         return $false
     }
 }
@@ -244,8 +253,8 @@ Function Get-Folder {
     $Topmost = New-Object System.Windows.Forms.Form
     $Topmost.TopMost = $True
     $Topmost.MinimizeBox = $True
-    $ButtonPressed =  $FolderBrowserDialog.ShowDialog($Topmost) 
-    if ($ReturnCancelIfCanceled -and ($ButtonPressed -eq "Cancel")) {return "Cancel"}
+    $ButtonPressed = $FolderBrowserDialog.ShowDialog($Topmost) 
+    if ($ReturnCancelIfCanceled -and ($ButtonPressed -eq "Cancel")) { return "Cancel" }
     return $FolderBrowserDialog.SelectedPath
 }
 
