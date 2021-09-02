@@ -1,9 +1,11 @@
-#Import-Module $PSScriptRoot\CyberFunctions.psm1
 <#
 .DESCRIPTION
-    If you want to add tools to download, add the name to $ToolsList array, and add a block for it in the switch below
+    
+.NOTES
+    If you want to add tools to download, add the name to [GUITools]/[CLITools] enum, and add a block for it in the switch below
     Dont forget to set $ToolURL to the URL of the tool's download link
 #>
+
 enum CLITools {
     Goddi = 1
     NTDSAudit
@@ -20,6 +22,7 @@ enum GUITools{
     azscan
     Scuba
     LanTopoLog
+    EverythingSearch
 }
 start-Transcript -path "$env:USERPROFILE\Documents\CyberAudit\MakePackage.Log" -Force -append | Out-Null
 
@@ -31,32 +34,28 @@ function Get-Tools {
 
     $global:Root = Get-Folder -EnsureEmpty
 
-    # if ($global:picks.count -eq 0) {
-    #     $maxNum = [GUITools].GetEnumNames().Count
-    #     $global:picks = (1..$maxNum)
-    # }
     Write-Host "`n`nTools that will be downloaded are: " -ForegroundColor Yellow
     foreach ($ToolName in [CLITools].GetEnumNames()) {
         Write-Host "- $ToolName" -ForegroundColor Yellow
     }
-    $global:picks.foreach({
+    $global:picks.foreach( {
             $name = [GUITools].GetEnumName($_)
-            Write-Host $name -ForegroundColor Yellow
+            Write-Host "- $name" -ForegroundColor Yellow
         })
         
     # Download CLI Tools
     foreach ($ToolName in [CLITools].GetEnumNames()) {
-        DownloadTool $ToolName
+        Receive-Tool $ToolName
     }       
     # Download the optional tools chosen by user
     foreach ($ToolNumber in $global:picks) {
         $ToolName = [GUITools].GetEnumName($ToolNumber)
-        DownloadTool $ToolName
+        Receive-Tool $ToolName
     }
     return ($DownloadedSuccessfuly.Count -gt 0)
 }
 #Get a tool name, set a directory for it and download it
-function DownloadTool {
+function Receive-Tool {
     param (
         [Parameter(Mandatory = $true)]        
         $ToolName
@@ -107,11 +106,17 @@ function DownloadTool {
         lantopolog {
             $ToolURL = "https://www.lantopolog.com/files/lantopolog248.zip"
             $NeedToExpand = $true
+        }
+        EverythingSearch {
+            $ToolURL = "https://www.voidtools.com/Everything-1.4.1.1009.x64.zip"
+            $NeedToExpand = $true
         }     
+
         
         Default { continue }
     }
     # Set the destination directory for the tool
+    # Take the script to the main directory, and any other tool to a dedicated
     $ToolEXEName = Split-Path $ToolURL -Leaf
     if ($ToolEXEName -notmatch '.*\.ps..?$') {
         New-Item  -Path "$global:Root\Tools\$ToolName"  -ItemType "Directory" -Force | out-null
@@ -123,6 +128,7 @@ function DownloadTool {
     Write-Host "Downloading $ToolName from $ToolURL" -ForegroundColor Magenta
     if ( dl $ToolURL $ToolLocalPath) {
         $DownloadedSuccessfuly.Add($ToolName)
+        # If tool is a zip file, expands the zip and remove the zip ater the expansion
         if ($NeedToExpand) {
             Write-Host "Expanding $ToolName archive" -ForegroundColor Magenta            
             $ToolDirectory = Split-Path $ToolLocalPath -Parent
@@ -131,9 +137,9 @@ function DownloadTool {
         }
     } else {
         $FailedToDownloadList.Add($ToolName)
-    }
-    
+    }    
 }
+# Compress all the files that downloaded and delete the origin after the compression
 function Compress-All {
     $ContentToCompress = Get-ChildItem -Path $global:Root -Exclude "*.log" 
     $ContentToCompress | Compress-Archive -DestinationPath $global:Root\CyberAuditLiteFD.zip -Verbose -Force 
@@ -155,9 +161,10 @@ function dl($url, $to) {
 function Get-UserAgent() {
     return "CyberAuditTool/1.0 (+http://cyberaudittool.c1.biz/) PowerShell/$($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor) (Windows NT $([System.Environment]::OSVersion.Version.Major).$([System.Environment]::OSVersion.Version.Minor); $(if($env:PROCESSOR_ARCHITECTURE -eq 'AMD64'){'Win64; x64; '})$(if($env:PROCESSOR_ARCHITEW6432 -eq 'AMD64'){'WOW64; '})$PSEdition)"
 }
+
 function fname($path) { split-path $path -leaf }
 function strip_filename($path) { $path -replace [regex]::escape((fname $path)) }
-
+# Show a window to select a folder
 Function Get-Folder {
     
     param (
@@ -183,19 +190,20 @@ Function Get-Folder {
     return $FolderBrowserDialog.SelectedPath
 }
 
-function ChooseTools {
-    # Show to user the tools that can be downloaded
-    Write-host "`nThe script will download tools directly from the internet according to this list:`n" -ForegroundColor Yellow
+# Show a menu that details the tools that will be downloaded, and offer additional tools to download
+function Select-Tools {
+    # Show to user the tools that will be downloaded
+    Write-host "`nThe script will download the next tools and compress them into a ZIP file:`n" -ForegroundColor Yellow
+    # Show the list of the CLI tools
+    [CLITools].GetEnumNames().ForEach( { Write-Host "- $_" -ForegroundColor Yellow })
+    Write-host "`nIn addition, you can choose to download these tools:`n" -ForegroundColor Yellow
     # Show the list of the optional GUI tools
     [GUITools].GetEnumNames() | ForEach-Object {
         $output = "{2,-3}{1,-2} {0}" -f $_, "--", [int]([GUITools]::$_)
         write-host $output -ForegroundColor Yellow
     }
-    # Show the list of the CLI tools
-    write-host "`nNote that these CLI tools will be downloaded anyway: " -ForegroundColor Yellow
-    [CLITools].GetEnumNames().ForEach( { Write-Host "- $_" -ForegroundColor Yellow })
-    write-host "`nEnter [CLI] to download only CLI audit Tools, or [ALL] to download all tools" -ForegroundColor Yellow
-    write-host "Or enter specific numbers of tools to download them. Seperate them by comma" -ForegroundColor Yellow
+    write-host "`nPress [Enter] to download only CLI audit Tools, or [ALL] to download all tools" -ForegroundColor Yellow
+    write-host "Alternativly, you can enter specific numbers of tools you want to download (make sure you separate them by a comma)" -ForegroundColor Yellow
     $userInput = Read-Host
     
     # Checks userInput is not empty
@@ -203,8 +211,7 @@ function ChooseTools {
         # Remove White spaces
         $userinput = $userInput -replace "\s", ""
         # Enter all CLI numbers
-        if ($userInput -eq "CLI") { $global:picks = $null }
-        elseif ($userInput -eq "ALL") { [int[]]$global:picks = @(1..[GUITools].GetEnumNames().Count); return }
+        if ($userInput -eq "ALL") { [int[]]$global:picks = @(1..[GUITools].GetEnumNames().Count); return }
         # Make sure that user input is only numbers seperated by comma
         elseif ($userInput -notmatch '^(\d+,)*\d+$') {
             Write-Error -Category InvalidArgument
@@ -219,8 +226,7 @@ function ChooseTools {
         }
     } else { $global:picks = $null }
 }
-
-ChooseTools
+Select-Tools
 if (Get-Tools) {
     #TODO: Return the compress al after the tests!
     #    Compress-All
@@ -238,6 +244,7 @@ if (Get-Tools) {
 } else {
     Write-Host "`nAn error accured, couldnt download any file" -BackgroundColor Red -ForegroundColor Black
 }
-#TODO: make the transcript folder hidden
-#(Get-Item $global:Root\MakePackage.Log -Force).Attributes += 'Hidden'
+
+# Make the transcript folder hidden
+(Get-Item "$env:USERPROFILE\Documents\CyberAudit" -Force).Attributes += 'Hidden'
 Stop-Transcript | Out-Null
