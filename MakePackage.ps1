@@ -11,7 +11,7 @@ enum CLITools {
     NTDSAudit
     PingCastle
     Testimo
-    CyberAuditLiteFD
+    CyberGatito
     CyberFunctions
     DSInternals    
 }
@@ -31,7 +31,13 @@ start-Transcript -path "$env:USERPROFILE\Documents\CyberAudit\MakePackage.Log" -
 $FailedToDownloadList = [System.Collections.ArrayList]::new()
 $DownloadedSuccessfuly = [System.Collections.ArrayList]::new()
 function Get-Tools {
+    <#
+.SYNOPSIS
+Check the tools in [CLITools] enum and the selected tools in $picks of [GUITools] enum, and download them with dl function
 
+.NOTES
+General notes
+#>
     $global:Root = Get-Folder -EnsureEmpty
 
     Write-Host "`n`nTools that will be downloaded are: " -ForegroundColor Yellow
@@ -76,8 +82,8 @@ function Receive-Tool {
         Testimo {
             $ToolURL = "https://github.com/maros17/Downloads/raw/main/TestimoAndDependecies.zip"
         }
-        CyberAuditLiteFD {
-            $ToolURL = "https://raw.githubusercontent.com/maros17/GoGetCyberAuditLite/main/CyberAuditLiteFD.ps1" 
+        CyberGatito {
+            $ToolURL = "https://raw.githubusercontent.com/maros17/GoGetCyberAuditLite/main/CyberGatito.ps1" 
         }
         CyberFunctions {
             $ToolURL = "https://raw.githubusercontent.com/maros17/GoGetCyberAuditLite/main/CyberFunctions.psm1"
@@ -110,9 +116,7 @@ function Receive-Tool {
         EverythingSearch {
             $ToolURL = "https://www.voidtools.com/Everything-1.4.1.1009.x64.zip"
             $NeedToExpand = $true
-        }     
-
-        
+        }
         Default { continue }
     }
     # Set the destination directory for the tool
@@ -127,7 +131,7 @@ function Receive-Tool {
 
     Write-Host "Downloading $ToolName from $ToolURL" -ForegroundColor Magenta
     if ( dl $ToolURL $ToolLocalPath) {
-        $DownloadedSuccessfuly.Add($ToolName)
+        $DownloadedSuccessfuly.Add($ToolName) | Out-Null
         # If tool is a zip file, expands the zip and remove the zip ater the expansion
         if ($NeedToExpand) {
             Write-Host "Expanding $ToolName archive" -ForegroundColor Magenta            
@@ -136,20 +140,20 @@ function Receive-Tool {
             Remove-Item $ToolLocalPath -Force
         }
     } else {
-        $FailedToDownloadList.Add($ToolName)
+        $FailedToDownloadList.Add($ToolName) | Out-Null
     }    
 }
 # Compress all the files that downloaded and delete the origin after the compression
 function Compress-All {
     $ContentToCompress = Get-ChildItem -Path $global:Root -Exclude "*.log" 
-    $ContentToCompress | Compress-Archive -DestinationPath $global:Root\CyberAuditLiteFD.zip -Verbose -Force 
+    $ContentToCompress | Compress-Archive -DestinationPath $global:Root\CyberGatito.zip -Verbose -Force 
     $ContentToCompress | Remove-Item -Force -Recurse
 }
 function dl($url, $to) {
     $success = $true
     try {
         $wc = New-Object Net.Webclient
-        $wc.headers.add('Referer', (strip_filename $url))
+        $wc.headers.Add('Referer', (strip_filename $url))
         $wc.Headers.Add('User-Agent', (Get-UserAgent))
         $wc.downloadFile($url, $to)
     } catch {
@@ -166,7 +170,6 @@ function fname($path) { split-path $path -leaf }
 function strip_filename($path) { $path -replace [regex]::escape((fname $path)) }
 # Show a window to select a folder
 Function Get-Folder {
-    
     param (
         $initialDirectory,
         [switch]
@@ -228,8 +231,7 @@ function Select-Tools {
 }
 Select-Tools
 if (Get-Tools) {
-    #TODO: Return the compress al after the tests!
-    #    Compress-All
+    Compress-All
     Write-Host "`nCongrats, you have a zip file in the directory you selected. Insert the zip file into your network" -ForegroundColor Green
     Write-Host "These files downloaded successfuly:" -ForegroundColor Green    
     $DownloadedSuccessfuly.ForEach( { Write-Host "- $_" -ForegroundColor Green })
