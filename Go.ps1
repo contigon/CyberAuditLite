@@ -131,14 +131,15 @@ Function Get-Folder($initialDirectory) {
 $runningScriptName = $MyInvocation.MyCommand.Name
 $Host.UI.RawUI.WindowTitle = "Cyber Audit Tool 2021 [$runningScriptName]"
 
-$CatInstallRepository = "CATInstall"
+# $CatInstallRepository = "CATInstall"
 
 # remote install command:
 #Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/contigon/CATInstall/master/go.ps1')
 
-$zipURLA = "https://raw.githubusercontent.com/contigon/$CatInstallRepository/master/go.pdf"
-$CLiteURL = 
-$zipURLB = "https://raw.githubusercontent.com/contigon/$CatInstallRepository/master/go.pdf"
+# $zipURLA = "https://raw.githubusercontent.com/contigon/$CatInstallRepository/master/go.pdf"
+$CLiteURL = "https://github.com/maros17/GoGetCyberAuditLite/blob/main/CyberAuditLiteFD.ps1"
+$CFuncURL = "https://github.com/maros17/GoGetCyberAuditLite/blob/main/CyberFunctions.psm1"
+# $zipURLB = "https://raw.githubusercontent.com/contigon/$CatInstallRepository/master/go.pdf"
 
 $runningScriptName = $MyInvocation.MyCommand.Name
 $Host.UI.RawUI.WindowTitle = "Cyber Audit Tool 2021 [$runningScriptName]"
@@ -176,9 +177,9 @@ While([bool](Get-ChildItem $BasePath)){
     }
     write-host "[Fail] The folder $BasePath is not empty" -ForegroundColor Red
     Write-Host "Would you like to empty the chosen folder?([Y]\[N]) If the answer is No, you must choose an empty folder" -ForegroundColor Yellow
-    $input = Read-Host 
-    if ($input -eq "y"){
-        Get-ChildItem -Path $BasePath | foreach { rm -Recurse $BasePath\$_ -Force}
+    $userInput = Read-Host 
+    if ($UserInput -eq "y"){
+        Get-ChildItem -Path $BasePath | ForEach-Object { Remove-Item -Recurse $BasePath\$_ -Force}
         if ([bool](Get-ChildItem $BasePath)) {
              write-host "[Fail] Failed to delete all files. Please delete manualy" -ForegroundColor Red
              read-host “Press ENTER to continue (or Ctrl+C to quit)”
@@ -198,19 +199,22 @@ Set-Location $BasePath
 try {
     $CAudit = "$BasePath\CyberAuditLiteFD.ps1"
     $CFunc = "$BasePath\CyberFunctions.psm1"
-    Write-Host "Trying to Download CyberAuditLite and CyberFunction Module from $zipurlA to $BasePath"
-    dl $zipurlA $zipfile
+    Write-Host "Trying to Download CyberAuditLite and CyberFunction Module from $CLiteURL to $BasePath"
+    dl $CLiteURL "$CAudit"
+    dl $CFuncURL "$CFunc"
     }
 catch {
     Write-Host "[Failed] Error connecting to 1st download site, trying 2nd download option"
-    $zipfile = "$BasePath\go.pdf"
+    # $zipfile = "$BasePath\go.pdf"
     Write-Host "Trying to Download Cyber Audit Tool from $zipurlB to $BasePath"
-    dl $zipurlB $zipfile
+    # dl $zipurlB $zipfile
     }
 
+<#
 Write-Output 'Extracting Cyber Audit Tool core files...'
 Add-Type -Assembly "System.IO.Compression.FileSystem"
 [IO.Compression.ZipFile]::ExtractToDirectory($zipfile, $BasePath) 
+#>
 
 Write-Host "Checking computer for minimal installation requirements "
 

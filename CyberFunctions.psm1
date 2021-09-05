@@ -148,7 +148,7 @@ function killApp {
 #check if RSAT is installed
 function checkRsat {
     $RSAT_Modules = @("ActiveDirectory", "DnsServer", "GroupPolicy", "ServerManager")
-    [System.Collections.ArrayList]$Missing = @() 
+    $Missing = [System.Collections.ArrayList]::new()
     foreach ($Module in $RSAT_Modules) {
         if ($null -eq (Get-Module -Name "$Module" -ListAvailable)) {
             $Missing.Add($Module) | Out-Null
@@ -158,7 +158,7 @@ function checkRsat {
         Write-Host "[Success] Rsat is installed" -ForegroundColor Green
         Return $true
     } else {
-        Write-Host "[Failures] Rsat is not installed properly, these modules is missing: " -ForegroundColor red
+        Write-Host "[Failure] Rsat is not installed properly, these modules are missing: " -ForegroundColor red
         $string = $Missing -join ', '
         Write-Host $string -ForegroundColor Red
         return $false
