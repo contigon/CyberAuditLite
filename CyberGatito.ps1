@@ -71,7 +71,7 @@ Domain Admin permissions.
     
     $ACQ = ACQ("goddi")
     Write-Host "You are running as user: $env:USERDNSDOMAIN\$env:USERNAME"
-    $UnsecuredPassword = $global:Credential.GetNetworkCredential().password
+    $UnsecuredPassword = $Credentials.GetNetworkCredential().password
     if ([string]::IsNullOrEmpty($env:USERDNSDOMAIN)) { 
         $xDNSDOMAIN = Read-Host "Enter the name of the domain full name (etc: domain.local)"
     } else { $xDNSDOMAIN = $env:USERDNSDOMAIN }
@@ -99,7 +99,7 @@ Note: This script supports AD running on Windows Servers 2012 and up,
     # Write-Host $help
     $ACQ = ACQ("NTDS")
     # $credential = New-Object System.Management.Automation.PSCredential($username, $password)
-    $winVer = Invoke-Command -ComputerName $DC -ScriptBlock { (Get-WmiObject -class Win32_OperatingSystem).Caption } -credential $credential
+    $winVer = Invoke-Command -ComputerName $DC -ScriptBlock { (Get-WmiObject -class Win32_OperatingSystem).Caption } -credential $Credentials
     if ($winVer.contains("2003") -or $winVer.contains("2008")) {
         Write-Host "The domain server is " $winVer -ForegroundColor Red
         $block = @"
@@ -123,7 +123,7 @@ when finished please copy the c:\ntdsdump directory to the Aquisition folder (NT
         $cmd = 'Get-Date -Format "yyyyMMdd-HHmm"'
         $currentTime = Invoke-Expression $cmd
         Write-Host "Please wait untill the backup process is completed" -ForegroundColor Green
-   #     remove-item $env:LOGONSERVER\c$\ntdsdump -Recurse -ErrorAction SilentlyContinue
+        #     remove-item $env:LOGONSERVER\c$\ntdsdump -Recurse -ErrorAction SilentlyContinue
         winrs -r:$DC ntdsutil "ac i ntds" "ifm" "create sysvol full c:\ntdsdump\$currentTime" q q
         Copy-Item -Path $env:LOGONSERVER\c$\ntdsdump\$currentTime -Destination $ACQ -Recurse -Force -Container:$false -Filter *.*
         Get-ChildItem -Path "$ACQ\" -directory -Recurse | Remove-Item -Force -Recurse
@@ -383,9 +383,9 @@ function Connect-Domain {
         write-Host "Please make sure you enter the full name of the domain, i.e. `"Domain.Local`": " -ForegroundColor Yellow -NoNewline
         $domain = Read-Host
         if ([string]::IsNullOrEmpty($domain)) { return }
-        $username = $domain + "\" + $username
+       # $username = $domain + "\" + $username
         #     $credential = New-Object System.Management.Automation.PSCredential($username, $password)
-        if (-not((Add-Computer -DomainName $domain -Credential $credential -PassThru -Force -Verbose).HasSucceeded)) {
+        if (-not((Add-Computer -DomainName $domain -Credential $Credentials -PassThru -Force -Verbose).HasSucceeded)) {
             Write-Host "Failed to register the computer to the domain `"$domain`" " -ForegroundColor Red
             Write-Host "Check the properties and try again" -ForegroundColor Yellow
             Write-Host "If you want to try again, prass [A]: " -ForegroundColor Yellow -NoNewline
@@ -408,88 +408,74 @@ function Test-DomainAdmin {
     # Check members of the "Domain Admins" Group
     try {
         $DomainAdmins = Get-ADGroupMember -Identity "Domain Admins" -Recursive | ForEach-Object { Get-ADUser -Identity $_.distinguishedName }  | Where-Object { $_.Enabled -eq $True }  | Select-Object  -ExpandProperty SamAccountName
-        if ($DomainAdmins.Contains($credential.username)) {
+        if ($DomainAdmins.Contains($username)) {
             Write-Host "You have Domain-Admin permissions" -ForegroundColor Green
             return $true
         } else {
-            Write-Host "To run the tools you need to run script by a Domain-Admin user"
+            Write-Host "You dont have Domain-Admin permissions" -ForegroundColor Red
             return $false
         }    
     } catch { return $false }
 }
 
 function Set-Creds {    
-    $global:Credential = Get-Credential -Message "Enter an admin user name which have Domain-Admin permissions, include the domain prefix"
-    while (-not(Test-Cred $Credential)) {
-        $global:Credential = Get-Credential -Message "User or password are wrong
-Enter an admin user name which have Domain-Admin permissions"
-    }    
-    $global:username = $Credential.UserName
-    $global:password = $Credential.Password       
+    $Credential = Get-Credential -Message "Enter an admin user name which have Domain-Admin permissions, include the domain prefix" -UserName "$DomainFullName\"
+    while (($null -ne $Credential) -and (-not(Test-Cred $Credential))) {
+        $Credential = Get-Credential  -Message "User or password are wrong`n Enter an admin user name which have Domain-Admin permissions, include the domain prefix" -UserName "$DomainFullName\"
+    }
+    if ($null -eq $Credential){
+        Write-Error "Cannot continue without credentials" -ErrorAction Stop
+    }
+    return $Credential
 }
-function Test-Cred {
-           
-    [CmdletBinding()]
-    [OutputType([boolean])] 
-       
-    Param ( 
-        [Parameter( 
-            Mandatory = $false, 
-            ValueFromPipeLine = $true, 
-            ValueFromPipelineByPropertyName = $true
-        )] 
-        [Alias( 
-            'PSCredential'
-        )] 
-        [ValidateNotNull()] 
-        [System.Management.Automation.PSCredential]
-        [System.Management.Automation.Credential()] 
-        $Credentials
+   
+function Test-Cred {     
+    param (  
+        [pscredential]      
+        $CredToTest
     )
-    $Domain = $null
-    $Root = $null
-    $Username = $null
-    $Password = $null
-      
-    If ($null -eq $Credentials) {
-        Try {
-            $Credentials = Get-Credential "domain\$env:username" -ErrorAction Stop
-        } Catch {
-            $ErrorMsg = $_.Exception.Message
-            Write-Warning "Failed to validate credentials: $ErrorMsg "
-            Pause
-            Break
-        }
+    Add-Type -AssemblyName System.DirectoryServices.AccountManagement
+    $Domain = $CredToTest.GetNetworkCredential().Domain
+    $User = $CredToTest.GetNetworkCredential().UserName
+    $Password = $CredToTest.GetNetworkCredential().Password
+    $contextType = [System.DirectoryServices.AccountManagement.ContextType]::Domain
+    
+    $argumentList = New-Object -TypeName "System.Collections.ArrayList"
+    $null = $argumentList.Add($contextType)
+    $null = $argumentList.Add($Domain)
+    if($null -ne $Server){
+        $argumentList.Add($Server)
     }
-      
-    # Checking module
-    Try {
-        # Split username and password
-        $Username = $credentials.username
-        $Password = $credentials.GetNetworkCredential().password
-  
-        # Get Domain
-        $Root = "LDAP://" + ([ADSI]'').distinguishedName
-        $Domain = New-Object System.DirectoryServices.DirectoryEntry($Root, $UserName, $Password)
-    } Catch {
-        $_.Exception.Message
-        Continue
+    
+    $principalContext = New-Object System.DirectoryServices.AccountManagement.PrincipalContext -ArgumentList $argumentList -ErrorAction SilentlyContinue
+    if ($null -eq $principalContext) {
+        Write-Warning "$Domain\$User - AD Authentication failed"
+        return $false
     }
-  
-    If (!$domain) { Write-Warning "Something went wrong" }
-    Else { return ($null -ne $domain.name) }
+    
+    if ($principalContext.ValidateCredentials($User, $Password)) {
+        Write-Host -ForegroundColor green "$Domain\$User - AD Authentication OK"
+        return $true
+    }
+    else {
+        Write-Warning "$Domain\$User - AD Authentication failed"
+        return $false
+    }
 }
-$global:username = $null
-$global:password = $null
 # Check if RSAT is installed
 if (CheckRSAT) { Import-Module ActiveDirectory -Force }
 else { return }
-Set-Creds
 # Check if the machine is in a domain. If not, suggests to connect to a domain
 if (-not (CheckMachineRole)) { Connect-Domain }
+$DomainFullName = Get-WmiObject -Namespace root\cimv2 -Class Win32_ComputerSystem | Select-Object -ExpandProperty Domain
+$Credentials = Set-Creds
+$username = $Credentials.GetNetworkCredential().UserName
+$password = $Credentials.Password       
+
+
 # Ensure current user have Domain-Admin privileges
 if (-not (Test-DomainAdmin)) { 
-    Write-Host "To run the tools you need to run script by a Domain-Admin user"    
+    Write-Host "To run the tools you need to run script by a Domain-Admin user"  -ForegroundColor Red  
     return 
 }
 
