@@ -83,10 +83,10 @@ function Receive-Tool {
             $ToolURL = "https://github.com/maros17/Downloads/raw/main/TestimoAndDependecies.zip"
         }
         CyberGatito {
-            $ToolURL = "https://raw.githubusercontent.com/maros17/GoGetCyberAuditLite/main/CyberGatito.ps1" 
+            $ToolURL = "https://raw.githubusercontent.com/maros17/GoGetCyberGatito/main/CyberGatito.ps1" 
         }
         CyberFunctions {
-            $ToolURL = "https://raw.githubusercontent.com/maros17/GoGetCyberAuditLite/main/CyberFunctions.psm1"
+            $ToolURL = "https://raw.githubusercontent.com/maros17/GoGetCyberGatito/main/CyberFunctions.psm1"
         }
         DSInternals {
             $ToolURL = "https://github.com/maros17/Downloads/raw/main/DSInternals.zip"
