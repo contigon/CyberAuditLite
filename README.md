@@ -1,4 +1,4 @@
-# GoGetCyberAuditLite
+# GoGetCyberGatito
 
 ## MakePackage.ps1
 The Script makes a ZIP file that contains the CyberGatito script and the tools he runs to audit information from network.
@@ -6,7 +6,7 @@ The script takes the tools and compress them into one zip file that you can inse
 
 To run the script run this command:
 ```powershell
-Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/maros17/GoGetCyberAuditLite/main/MakePackage.ps1')
+Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/maros17/GoGetCyberGatito/main/MakePackage.ps1')
 ```
 
 ## CyberGatito.ps1
