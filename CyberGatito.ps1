@@ -52,6 +52,7 @@ Domain Admin permissions.
         
 "@
     #   Write-Host $help
+    write-host "`nRunning Goddi`n---------------`n"  -ForegroundColor Yellow
     if ((Get-ChildItem -Filter "goddi-windows-amd64.exe" -Path $PSScriptRoot  -Recurse) ) {
         $goddiEXE = (Get-ChildItem -Filter "goddi-windows-amd64.exe" -Path $PSScriptRoot  -Recurse)[0].FullName
         $goddiDirectory = Split-Path $goddiEXE -Parent
@@ -98,6 +99,7 @@ Note: This script supports AD running on Windows Servers 2012 and up,
         
 "@
     # Write-Host $help
+    write-host "`nNTDSUtil & NTDS-Audit`n---------------`n"  -ForegroundColor Yellow
     $ACQ = ACQ("NTDS")
     # $credential = New-Object System.Management.Automation.PSCredential($username, $password)
     $winVer = Invoke-Command -ComputerName $DC -ScriptBlock { (Get-WmiObject -class Win32_OperatingSystem).Caption } -credential $Credentials
@@ -209,7 +211,8 @@ function Get-ToolsFolder {
         $Path = Get-Folder -Description "Choose the folder that contains $ToolEXEName files" -DisableNewFolder -ReturnCancelIfCanceled
     }
     if ($Path -eq "Cancel") { 
-        Write-Error -Message "File selection canceled, cannot continue!" -ErrorAction Stop
+        Write-Warning -Message "File selection canceled, cannot continue"
+        exit
     }
     return $Path     
 }
@@ -257,6 +260,7 @@ function Start-PingCastle {
             
 "@
     #   Write-Host $help
+    write-host "`nRunning PingCastle`n---------------`n"  -ForegroundColor Yellow
     $ACQ = ACQ("PingCastle")
     if ((Get-ChildItem -Filter "pingcastle.exe" -Path $PSScriptRoot  -Recurse) ) {
         $PingCastleFolder = (Get-ChildItem -Filter "pingcastle.exe" -Path $PSScriptRoot  -Recurse)[0].DirectoryName
@@ -312,6 +316,7 @@ function Start-Testimo {
             
 "@
     #  Write-Host $help 
+    write-host "`nRunning Testimo`n---------------`n"  -ForegroundColor Yellow
     Install-TestimoModules
   
     $ACQ = ACQ("Testimo")
@@ -378,41 +383,40 @@ function DownloadTool {
     dl $ToolURL "$PSScriptRoot\$ToolName\$ToolEXEName"
     return "$PSScriptRoot\$ToolName\$ToolEXEName"    
 }
-#TODO - check how to convert the "return" in the function to something that exits the script
 function Connect-Domain {
-    write-Host "`n`nDo you want to register to a domain?" -ForegroundColor Yellow 
+    write-host "`nStarting registration to domain`n---------------`n"  -ForegroundColor Yellow
+    write-Host "Do you want to register to a domain now?" -ForegroundColor Yellow 
     do {   
         # Getting the creds from user
         write-Host "To register the computer enter the name of the domain. Leave empty to exit" -ForegroundColor Yellow 
         write-Host "Please make sure you enter the full name of the domain, i.e. `"Domain.Local`": " -ForegroundColor Yellow -NoNewline
         $domain = Read-Host
-        Write-Host "`n`n"
+        Write-Host "`n"
         if ([string]::IsNullOrEmpty($domain)) { Write-Warning "Need domain to continue" ; exit }
         $credential = $Host.ui.PromptForCredential("Credentials for domain", "Enter username and password for an admin user in the domain `"$domain`"`n
 No need to enter prefix of domain", "", "$domain", 2, 1)
         # Validates the creds
-        if (!$credential) { Write-Warning "Need credentials to continue" -WarningAction Stop }
-        if ( !(Test-Cred $credential)) {Write-Warning "User, Password or domain name is incorrect"; }
-
+        if (!$credential) { Write-Warning "Need credentials to continue"; exit }
+        if ( !(Test-Cred $credential)) { Write-Warning "User, Password or domain name is incorrect"; $continue = $true; continue }
         # Trying to connect the computer to the domain
         try {
             $SuccessOfConnection = ((Add-Computer -DomainName $domain -Credential $Credential -PassThru -Force -ErrorAction SilentlyContinue).HasSucceeded)
         } finally {
-            if ($SuccessOfConnection){
+            if ($SuccessOfConnection) {
                 Write-Host "`n`nSuccessfuly connected to domain: `"$domain`"`n" -ForegroundColor Green            
                 $Continue = $false
-            }else{
-               Write-Host "`n`nFailed to register the computer in the domain `"$domain`" " -ForegroundColor Red
-               Write-Host "Verify the details and try again, make sure the user has admin permissions" -ForegroundColor Red
-               Write-Host "`nIf you want to try again, prass [A]: " -ForegroundColor Yellow -NoNewline
-               $userInput = Read-Host
-               if ($userInput -eq "A") { $Continue = $true }
-               else {Write-Warning "Cannot run the script out of a domain"; exit }
-           }
+            } else {
+                Write-Host "`n`nFailed to register the computer in the domain `"$domain`" " -ForegroundColor Red
+                Write-Host "Verify the details and try again, make sure the user has admin permissions" -ForegroundColor Red
+                Write-Host "`nIf you want to try again, prass [A]: " -ForegroundColor Yellow -NoNewline
+                $userInput = Read-Host
+                if ($userInput -eq "A") { $Continue = $true }
+                else { Write-Warning "Cannot run the script out of a domain"; exit }
+            }
         }
     }while ($Continue)
     # The connection succeeded, now need to restart computer
-    Write-Host "`n`nWe have to restart your computer now to apply the changes and let you to login to windows with domain-admin user" -ForegroundColor Yellow
+    Write-Host "`nWe have to restart your computer now to apply the changes and let you to login to windows with domain-admin user" -ForegroundColor Yellow
     Write-Host "Do you want to restart your computer now or do it manually?" -ForegroundColor Yellow
     Write-Host "To restart your computer right now, enter `"restart`": " -ForegroundColor Yellow -NoNewline
     $userInput = Read-Host 
@@ -427,8 +431,13 @@ function Test-DomainAdmin {
     try {
         $DomainAdmins = Get-ADGroupMember -Identity "Domain Admins" -Recursive | ForEach-Object { Get-ADUser -Identity $_.distinguishedName }  | Where-Object { $_.Enabled -eq $True }  | Select-Object  -ExpandProperty SamAccountName
         if ($DomainAdmins.Contains($env:USERNAME)) {
-            Write-Host "You have Domain-Admin permissions" -ForegroundColor Green
-            return $true
+            if ($DomainAdmins.Contains($username)) {
+                Write-Host "You have Domain-Admin permissions" -ForegroundColor Green
+                return $true
+            } else {
+                Write-Host "The user `"$username`" you provided its credentials, doesnt have Domain-Admin permissions" -ForegroundColor Red
+                return $false
+            }
         } else {
             Write-Host "The user `"$env:USERNAME`" you are logged on with, doesnt have Domain-Admin permissions" -ForegroundColor Red
             return $false
@@ -469,8 +478,7 @@ function Test-Cred {
     }
     try {
         $principalContext = New-Object System.DirectoryServices.AccountManagement.PrincipalContext -ArgumentList $argumentList -ErrorAction SilentlyContinue
-    }
-    catch {}
+    } catch {}
     if ($null -eq $principalContext) {
         Write-Warning "$Domain\$User - AD Authentication failed"
         return $false
@@ -484,6 +492,7 @@ function Test-Cred {
         return $false
     }
 }
+
 # Check if RSAT is installed
 if (CheckRSAT) { Import-Module ActiveDirectory -Force }
 else { return }
