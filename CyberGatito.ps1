@@ -57,18 +57,19 @@ Domain Admin permissions.
         $goddiEXE = (Get-ChildItem -Filter "goddi-windows-amd64.exe" -Path $PSScriptRoot  -Recurse)[0].FullName
         $goddiDirectory = Split-Path $goddiEXE -Parent
     } else {
-        write-Host "Cannot find file `"goddi-windows-amd64.exe`"
-If you have the program, type [Y] to select its location 
-If you dont have the program, press ENTER to Download it automaticly: " -ForegroundColor Yellow -NoNewline 
+        write-Host "Cannot find file `"goddi-windows-amd64.exe`"" -ForegroundColor Red
+        write-host "If you have the program, type [Y] to select its location"  -ForegroundColor Yellow
+        if ($IsInternetConnected) { write-Host "If you dont have the program, press ENTER to Download it automatically: " -ForegroundColor Yellow }
+        else { write-Host "If you dont have the program, press ENTER to continue running the other tools: " -ForegroundColor Yellow }
         $userInput = Read-Host
         if ($userInput -ieq "y") {
             $goddiDirectory = Get-ToolsFolder -ToolEXEName "goddi-windows-amd64.exe"
+            if ($null -eq $goddiDirectory) { Write-Warning "Abborting running of goddi, continuing running other tools"; return }
             $goddiEXE = "$goddiDirectory\goddi-windows-amd64.exe"
-            
-        } else {
-            $goddiEXE = DownloadTool "goddi-windows-amd64.exe"
+        } elseif ($IsInternetConnected) {
+            $goddiEXE = DownloadTool "goddi"
             $goddiDirectory = Split-Path $goddiEXE -Parent
-        }
+        } else { return }
     }
     
     $ACQ = ACQ("goddi")
@@ -168,17 +169,18 @@ function Start-NTDSAuditTool {
         $NTDSDirectory = Split-Path $NTDSAuditEXE -Parent
     } else {
         write-Host "Cannot find `"NTDSAudit.exe`"
-If you already have the program, type [Y] to choose its location 
-If you dont have the program, press ENTER to Download it automaticly: " -ForegroundColor Yellow -NoNewline 
+If you already have the program, type [Y] to choose its location " -ForegroundColor Yellow 
+        if ($IsInternetConnected) { write-Host "If you dont have the program, press ENTER to Download it automatically: " -ForegroundColor Yellow }
+        else { write-Host "If you dont have the program, press ENTER to continue running the other tools: " -ForegroundColor Yellow }
         $userInput = Read-Host
         if ($userInput -ieq "y") {
             $NTDSDirectory = Get-ToolsFolder -ToolEXEName "NtdsAudit.exe"
-            $NTDSAuditEXE = "$NTDSDirectory\NtdsAudit.exe"
-            
-        } else {
-            $NTDSAuditEXE = DownloadTool "NTDSAudit.exe"
+            if ($null -eq $NTDSDirectory) { Write-Warning "Abborting running of NTDS-Audit, continuing running other tools"; return }
+            $NTDSAuditEXE = "$NTDSDirectory\NtdsAudit.exe"            
+        } elseif ($IsInternetConnected) {
+            $NTDSAuditEXE = DownloadTool "NTDSAudit"
             $NTDSDirectory = Split-Path $NTDSAuditEXE -Parent
-        }
+        } else { return }
     }
     # Move all the files from the dump to the main directory
     Get-ChildItem -Path $ACQ -Recurse -File | Move-Item -Destination $ACQ -Force
@@ -211,8 +213,8 @@ function Get-ToolsFolder {
         $Path = Get-Folder -Description "Choose the folder that contains $ToolEXEName files" -DisableNewFolder -ReturnCancelIfCanceled
     }
     if ($Path -eq "Cancel") { 
-        Write-Warning -Message "File selection canceled, cannot continue"
-        exit
+        Write-Warning -Message "File selection canceled"
+        return $null
     }
     return $Path     
 }
@@ -223,21 +225,23 @@ function Install-DSInternalsModule {
     if (Get-ChildItem -path "$PSScriptRoot" -Filter "DSInternals.zip" -File -Recurse) {
         $ZIPFilePath = (Get-ChildItem -path "$PSScriptRoot" -Filter "DSInternals.zip" -File -Recurse)[0].FullName
     } else {
-        Write-Host "[Failed] Cannot find DSInternals.zip, please select its zip file" -ForegroundColor Red
-        Write-Host "You can select the file location, or Download it automaticly" -ForegroundColor Red 
-        $userInput = Read-Host "Press ENTER to download it automaticly, or type [L] to locate it locally"
+        Write-Host "Cannot find DSInternals.zip of modules, please select its zip file" -ForegroundColor Red
+        Write-Host "You can select the file location, or Download it automatically" -ForegroundColor Yellow
+        if ($IsInternetConnected) { Write-Host "Press ENTER to download it automatically, or type [L] to locate it locally" -ForegroundColor Yellow }
+        else { Write-Host "Press ENTER to continue with the other tools, or type [L] to locate it locally" -ForegroundColor Yellow }
+        $userInput = Read-Host
         if ($userInput -eq "L") {                
             $ZIPFilePath = Get-FileName -Extensions "zip"
-        } else {
-            if (!(Get-PackageProvider -Name nuget)) {
+        } elseif ($IsInternetConnected) {
+            if (!(Get-PackageProvider -Name nuget -force)) {
                 Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
             }
-            if (!(Get-Module -Name PowerShellGet)) {
+            if (!(Get-Module -Name PowerShellGet -force)) {
                 Install-Module -Name PowerShellGet -Force
             }
-            Install-Module -Name DSInternals
+            Install-Module -Name DSInternals -force
             return
-        }            
+        } else { return }
     }
     $ModuleDestination = ($env:PSModulePath -split ";" | Select-String "$env:USERPROFILE" -SimpleMatch).ToString()
     Unblock-File -Path "$ZIPFilePath"
@@ -265,18 +269,20 @@ function Start-PingCastle {
     if ((Get-ChildItem -Filter "pingcastle.exe" -Path $PSScriptRoot  -Recurse) ) {
         $PingCastleFolder = (Get-ChildItem -Filter "pingcastle.exe" -Path $PSScriptRoot  -Recurse)[0].DirectoryName
     } else {
-        write-Host "Cannot find `"pingcastle.exe`" file
-If you already have the program, type [Y] to choose its location 
-If you dont have the program, press ENTER to Download it automaticly: " -ForegroundColor Yellow -NoNewline 
+        write-Host "Cannot find `"pingcastle.exe`" file" -ForegroundColor Red
+        Write-Host " If you already have the program, type [Y] to choose its location " -ForegroundColor Yellow 
+        if ($IsInternetConnected) { write-Host "If you dont have the program, press ENTER to Download it automatically: " -ForegroundColor Yellow }
+        else { write-Host "If you dont have the program, press ENTER to continue running the other tools: " -ForegroundColor Yellow }
         $userInput = Read-Host
         if ($userInput -ieq "y") {
             $PingCastleFolder = Get-ToolsFolder "Pingcastle.exe"
-        } else {
+            if ($null -eq $PingCastleFolder) { Write-Warning "Abborting running of PingCastle, continuing running other tools"; return }
+        } elseif ($IsInternetConnected) {
             $PingCastleZIP = DownloadTool "PingCastle"
             $PingCastleZIPParent = Split-Path $PingCastleZIP -Parent
             Expand-Archive -Path $PingCastleZIP -DestinationPath $PingCastleZIPParent -Force
             $PingCastleFolder = $PingCastleZIPParent
-        }        
+        } else { return }
     }
     Invoke-Command -ScriptBlock {
         push-Location $ACQ
@@ -320,36 +326,12 @@ function Start-Testimo {
     Install-TestimoModules
   
     $ACQ = ACQ("Testimo")
-    if (checkRsat) {
+    if (Get-Module testimo) {
         import-module activedirectory ; Get-ADDomainController -Filter * | Select-Object Name, ipv4Address, OperatingSystem, site | Sort-Object -Property Name
         Invoke-Testimo  -ExcludeSources DCDiagnostics -ReportPath $ACQ\Testimo.html -HideHTML
     }
 }
 function Install-TestimoModules {
-    if (Get-ChildItem -Path "$PSScriptRoot" -Filter "TestimoAndDependecies.zip" -Recurse) {
-        $ModulesZip = (Get-ChildItem -Path "$PSScriptRoot" -Filter "TestimoAndDependecies.zip" -Recurse)[0].FullName
-    } else {
-        Write-Host "[Failed] Cannot find DSInternals.zip, please select its zip file" -ForegroundColor Red
-        Write-Host "You can select the file location, or Download it automaticly" -ForegroundColor Red 
-        $userInput = Read-Host "Press ENTER to download it automaticly, or type [L] to locate it locally"
-        if ($userInput -eq "L") {       
-            write-host "A windows will open to select a file, Please select the ZIP file contains Testimo-Modules.zip"
-            Read-Host "Press ENTER to continue"
-            $ModulesZip = get-filename -Extensions "zip"
-        } else {
-            if (!(Get-PackageProvider -Name nuget)) {
-                Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
-            }
-            if (!(Get-Module -Name PowerShellGet)) {
-                Install-Module -Name PowerShellGet -Force
-            }
-            Install-Module -Name Testimo -force
-            return
-        }
-    }
-    $ModuleDestination = ($env:PSModulePath -split ";" | Select-String "$env:USERPROFILE" -SimpleMatch).ToString()
-    Expand-Archive -Path $ModulesZip -DestinationPath $ModuleDestination -Force
-
     $Modules = @(
         "PSWriteHTML"
         "PSEventViewer"
@@ -361,6 +343,40 @@ function Install-TestimoModules {
         "PSSharedGoods"
         "testimo"
     )
+    # Check if testimo and all its dependencies already installed, and if they are, no need to install
+    $AllModulesExist = $true
+    ForEach ($m in $Modules) {
+        if (!(Get-Module $m)) {
+            $AllModulesExist = $false
+        }
+    }
+    if ($AllModulesExist) { Write-Host "[Success] Testimo and all its dependencies are installed" -ForegroundColor Green; return }
+    # If the modules arent installed, searches for them in the script's root subdirectories
+    if (Get-ChildItem -Path "$PSScriptRoot" -Filter "TestimoAndDependecies.zip" -Recurse) {
+        $ModulesZip = (Get-ChildItem -Path "$PSScriptRoot" -Filter "TestimoAndDependecies.zip" -Recurse)[0].FullName
+    } else {
+        Write-Host "[Failed] Cannot find TestimoAndDependecies.zip, please select its zip file" -ForegroundColor red
+        if ($IsInternetConnected) { Write-Host "Press ENTER to download it automatically, or type [L] to locate it locally"  -ForegroundColor Yellow }
+        else { Write-Host "Press ENTER to continue with other tools, or type [L] to locate it locally" -ForegroundColor Yellow }
+        $userInput = Read-Host 
+        if ($userInput -eq "L") {       
+            write-host "A windows will open to select a file, Please select the ZIP file contains Testimo-Modules.zip"
+            Read-Host "Press ENTER to continue"
+            $ModulesZip = get-filename -Extensions "zip"
+        } elseif ($IsInternetConnected) {
+            if (!(Get-PackageProvider -Name nuget)) {
+                Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+            }
+            if (!(Get-Module -Name PowerShellGet)) {
+                Install-Module -Name PowerShellGet -Force
+            }
+            Install-Module -Name Testimo -force
+            return
+        } else { return }
+    }
+    $ModuleDestination = ($env:PSModulePath -split ";" | Select-String "$env:USERPROFILE" -SimpleMatch).ToString()
+    Expand-Archive -Path $ModulesZip -DestinationPath $ModuleDestination -Force
+
     foreach ($_ in $Modules) {
         Import-Module $_  -Force
     }
@@ -379,9 +395,9 @@ function DownloadTool {
         Default {}
     }    
     $ToolEXEName = fname $ToolURL
-    New-Item  -Path "$PSScriptRoot\$ToolName"  -ItemType "Directory" -Force | out-null
-    dl $ToolURL "$PSScriptRoot\$ToolName\$ToolEXEName"
-    return "$PSScriptRoot\$ToolName\$ToolEXEName"    
+    New-Item  -Path "$PSScriptRoot\Tools\$ToolName"  -ItemType "Directory" -Force | out-null
+    dl $ToolURL "$PSScriptRoot\Tools\$ToolName\$ToolEXEName"
+    return "$PSScriptRoot\Tools\$ToolName\$ToolEXEName"    
 }
 function Connect-Domain {
     write-host "`nStarting registration to domain`n---------------`n"  -ForegroundColor Yellow
@@ -403,7 +419,7 @@ No need to enter prefix of domain", "", "$domain", 2, 1)
             $SuccessOfConnection = ((Add-Computer -DomainName $domain -Credential $Credential -PassThru -Force -ErrorAction SilentlyContinue).HasSucceeded)
         } finally {
             if ($SuccessOfConnection) {
-                Write-Host "`n`nSuccessfuly connected to domain: `"$domain`"`n" -ForegroundColor Green            
+                Write-Host "`n`n[Success] Successfuly connected to domain: `"$domain`"`n" -ForegroundColor Green            
                 $Continue = $false
             } else {
                 Write-Host "`n`nFailed to register the computer in the domain `"$domain`" " -ForegroundColor Red
@@ -429,10 +445,10 @@ No need to enter prefix of domain", "", "$domain", 2, 1)
 function Test-DomainAdmin {
     # Check members of the "Domain Admins" Group
     try {
-        $DomainAdmins = Get-ADGroupMember -Identity "Domain Admins" -Recursive | ForEach-Object { Get-ADUser -Identity $_.distinguishedName }  | Where-Object { $_.Enabled -eq $True }  | Select-Object  -ExpandProperty SamAccountName
-        if ($DomainAdmins.Contains($env:USERNAME)) {
-            if ($DomainAdmins.Contains($username)) {
-                Write-Host "You have Domain-Admin permissions" -ForegroundColor Green
+        [string[]]$DomainAdmins = Get-ADGroupMember -Identity "Domain Admins" -Recursive | ForEach-Object { Get-ADUser -Identity $_.distinguishedName }  | Where-Object { $_.Enabled -eq $True }  | Select-Object  -ExpandProperty SamAccountName
+        if ($DomainAdmins.ToLower().Contains($env:USERNAME.ToLower())) {
+            if ($DomainAdmins.ToLower().Contains($username.ToLower())) {
+                Write-Host "[Success] You have Domain-Admin permissions" -ForegroundColor Green
                 return $true
             } else {
                 Write-Host "The user `"$username`" you provided its credentials, doesnt have Domain-Admin permissions" -ForegroundColor Red
@@ -449,7 +465,8 @@ function Test-DomainAdmin {
 function Set-Creds {    
     $Credential = Get-Credential -Message "Enter an admin user name which have Domain-Admin permissions, include the domain prefix" -UserName "$DomainFullName\"
     while (($null -ne $Credential) -and (-not(Test-Cred $Credential))) {
-        $Credential = Get-Credential  -Message "User or password are wrong`n Enter an admin user name which have Domain-Admin permissions, include the domain prefix" -UserName "$DomainFullName\"
+        $Credential = Get-Credential  -Message "User or password are wrong
+Enter an admin user name which have Domain-Admin permissions, include the domain prefix" -UserName "$DomainFullName\"
     }
     if ($null -eq $Credential) {
         Write-Warning "Cannot continue without credentials" 
@@ -480,17 +497,20 @@ function Test-Cred {
         $principalContext = New-Object System.DirectoryServices.AccountManagement.PrincipalContext -ArgumentList $argumentList -ErrorAction SilentlyContinue
     } catch {}
     if ($null -eq $principalContext) {
-        Write-Warning "$Domain\$User - AD Authentication failed"
+        Write-Warning "[failure] $Domain\$User - AD Authentication failed"
         return $false
     }
     
     if ($principalContext.ValidateCredentials($User, $Password)) {
-        Write-Host -ForegroundColor green "$Domain\$User - AD Authentication OK"
+        Write-Host -ForegroundColor green "[Success] $Domain\$User - AD Authentication OK"
         return $true
     } else {
-        Write-Warning "$Domain\$User - AD Authentication failed"
+        Write-Warning "[failure] $Domain\$User - AD Authentication failed"
         return $false
     }
+}
+function Compress-All {    
+    Compress-Archive -Path "$ACQ" -DestinationPath "$PSScriptRoot\GatitoOutput-$env:computername.zip" -Verbose -Force
 }
 
 # Check if RSAT is installed
@@ -500,15 +520,17 @@ else { return }
 if (-not (CheckMachineRole)) { Connect-Domain }
 $DomainFullName = Get-WmiObject -Namespace root\cimv2 -Class Win32_ComputerSystem | Select-Object -ExpandProperty Domain
 $Credentials = Set-Creds
-$username = $Credentials.GetNetworkCredential().UserName
-$password = $Credentials.Password       
+[string]$username = $Credentials.GetNetworkCredential().UserName
+[string]$password = $Credentials.Password       
 
 
 # Ensure current user has Domain-Admin privileges
 if (-not (Test-DomainAdmin)) { 
-    Write-Host "To run the tools you need to run the script by a Domain-Admin user"  -ForegroundColor Red  
+    Write-Host "To run the script you need to run it via a Domain-Admin user"  -ForegroundColor Red  
     return 
 }
+# Check internet connection
+$IsInternetConnected = Test-InternetConnection
 
 $DC = ($env:LOGONSERVER).TrimStart("\\")
 
@@ -517,5 +539,6 @@ Get-NTDS
 Start-PingCastle
 Start-Testimo
 $ACQ = ACQBaseFolder
+Compress-All
 $null = start-Process -PassThru explorer "$ACQ"
 stop-Transcript | out-null

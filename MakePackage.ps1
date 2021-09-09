@@ -48,11 +48,12 @@ General notes
             $name = [GUITools].GetEnumName($_)
             Write-Host "- $name" -ForegroundColor Yellow
         })
-        
+
+    Write-Host "`nStarting downloading..." -ForegroundColor Magenta
     # Download CLI Tools
     foreach ($ToolName in [CLITools].GetEnumNames()) {
         Receive-Tool $ToolName
-    }       
+    }
     # Download the optional tools chosen by user
     foreach ($ToolNumber in $global:picks) {
         $ToolName = [GUITools].GetEnumName($ToolNumber)
@@ -206,7 +207,7 @@ function Select-Tools {
         write-host $output -ForegroundColor Yellow
     }
     write-host "`nPress [Enter] to download only CLI audit Tools, or [ALL] to download all tools" -ForegroundColor Yellow
-    write-host "Alternativly, you can enter specific numbers of tools you want to download (make sure you separate them by a comma)" -ForegroundColor Yellow
+    write-host "Alternatively, you can enter specific numbers of tools you want to download (make sure you separate them by a comma)" -ForegroundColor Yellow
     $userInput = Read-Host
     
     # Checks userInput is not empty

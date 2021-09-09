@@ -913,5 +913,12 @@ function activateWinOptFeatures {
         Enable-WindowsOptionalFeature -Online -FeatureName "VirtualMachinePlatform" -Source "SourcePath" -NoRestart -All
     }
 }
-
+function Test-InternetConnection {
+    try {
+        Invoke-RestMethod -Uri ('https://ipinfo.io/')
+        return $true
+    } catch {
+        return $false
+    }
+}
 
