@@ -23,7 +23,13 @@ enum GUITools{
     Scuba
     LanTopoLog
     EverythingSearch
+    Skybox_Appliacne
+    Skybox_Guide
+    Skybox_Windows
+    Nessus
+    Runecast
 }
+$MaxIndexOfSmallTools = [int]([GUITools]::EverythingSearch)
 start-Transcript -path "$env:USERPROFILE\Documents\CyberAudit\MakePackage.Log" -Force -append | Out-Null
 
 # Sets a list for the tools downloaded successful and for the tool failed to download
@@ -31,6 +37,7 @@ start-Transcript -path "$env:USERPROFILE\Documents\CyberAudit\MakePackage.Log" -
 $FailedToDownloadList = [System.Collections.ArrayList]::new()
 $DownloadedSuccessfuly = [System.Collections.ArrayList]::new()
 function Get-Tools {
+
     <#
 .SYNOPSIS
 Check the tools in [CLITools] enum and the selected tools in $picks of [GUITools] enum, and download them with dl function
@@ -52,23 +59,23 @@ General notes
     Write-Host "`nStarting downloading..." -ForegroundColor Magenta
     # Download CLI Tools
     foreach ($ToolName in [CLITools].GetEnumNames()) {
-        Receive-Tool $ToolName
+        DownloadTool $ToolName
     }
     # Download the optional tools chosen by user
     foreach ($ToolNumber in $global:picks) {
         $ToolName = [GUITools].GetEnumName($ToolNumber)
-        Receive-Tool $ToolName
+        DownloadTool $ToolName
     }
     return ($DownloadedSuccessfuly.Count -gt 0)
 }
 #Get a tool name, set a directory for it and download it
-function Receive-Tool {
+function DownloadTool {
     param (
         [Parameter(Mandatory = $true)]        
         $ToolName
     )
 
-    $NeedToExpand = $false
+    $NeedExpansion = $false
     switch ($ToolName) {
         Goddi {
             $ToolURL = "https://github.com/NetSPI/goddi/releases/download/v1.2/goddi-windows-amd64.exe"
@@ -78,7 +85,7 @@ function Receive-Tool {
         }
         PingCastle {
             $ToolURL = "https://github.com/vletoux/pingcastle/releases/download/2.10.0.0/PingCastle_2.10.0.0.zip" 
-            $NeedToExpand = $true
+            $NeedExpansion = $true
         }
         Testimo {
             $ToolURL = "https://github.com/maros17/Downloads/raw/main/TestimoAndDependecies.zip"
@@ -100,30 +107,48 @@ function Receive-Tool {
         }
         WinSCP {
             $ToolURL = "https://winscp.net/download/WinSCP-5.17.9-Portable.zip"
-            $NeedToExpand = $true
         }
         NotepadPlusPlus {
             $ToolURL = "https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8/npp.8.0.portable.zip"
-            $NeedToExpand = $true
+            $NeedExpansion = $true
         }
         Scuba {
             $ToolURL = "https://github.com/contigon/Downloads/raw/master/Scuba-Windows.zip"
-            $NeedToExpand = $true
         }
         lantopolog {
             $ToolURL = "https://www.lantopolog.com/files/lantopolog248.zip"
-            $NeedToExpand = $true
+            $NeedExpansion = $true
         }
         EverythingSearch {
             $ToolURL = "https://www.voidtools.com/Everything-1.4.1.1009.x64.zip"
-            $NeedToExpand = $true
+            $NeedExpansion = $true
+        }
+        Skybox_Appliacne {
+            $ToolURL = 'https://downloads.skyboxsecurity.com/files/iso/Skybox_11.4.122-7.1.333/ISO/Skybox_11.4.122-7.1.333.iso'  
+        }
+        Skybox_Windows {
+            $ToolURL = 'https://downloads.skyboxsecurity.com/files/Installers/Skybox_View/11.4/11.4.100/SkyboxManager-11.4.125-274.exe'
+        }
+        Skybox_Guide {
+            $ToolURL = 'https://downloads.skyboxsecurity.com/files/iso/latestDocs/Skybox%20Virtual%20Appliance%20Quick%20Start%20Guide.pdf'
+        }
+        Nessus {
+            $ToolURL = 'https://www.tenable.com/downloads/api/v1/public/pages/nessus/downloads/13315/download?i_agree_to_tenable_license_agreement=true'
+        }
+        Runecast {
+            $ToolURL = 'https://updates.runecast.com/ova/RunecastAnalyzer.ova'
         }
         Default { continue }
     }
     # Set the destination directory for the tool
     # Take the script to the main directory, and any other tool to a dedicated
     $ToolEXEName = Split-Path $ToolURL -Leaf
-    if ($ToolEXEName -notmatch '.*\.ps..?$') {
+    # Put all skybox files in one directory
+    if ($ToolName -match '^skybox.*') {
+        New-Item  -Path "$global:Root\Tools\Skybox" -ItemType "Directory" -Force | out-null
+        $ToolLocalPath = "$global:Root\Tools\Skybox\$ToolEXEName"
+    }
+    elseif ($ToolEXEName -notmatch '.*\.ps..?$') {
         New-Item  -Path "$global:Root\Tools\$ToolName"  -ItemType "Directory" -Force | out-null
         $ToolLocalPath = "$global:Root\Tools\$ToolName\$ToolEXEName"
     } else {
@@ -134,15 +159,13 @@ function Receive-Tool {
     if ( dl $ToolURL $ToolLocalPath) {
         $DownloadedSuccessfuly.Add($ToolName) | Out-Null
         # If tool is a zip file, expands the zip and remove the zip ater the expansion
-        if ($NeedToExpand) {
+        if ($NeedExpansion) {
             Write-Host "Expanding $ToolName archive" -ForegroundColor Magenta            
             $ToolDirectory = Split-Path $ToolLocalPath -Parent
             Expand-Archive -Path $ToolLocalPath -DestinationPath $ToolDirectory -Force
-            Remove-Item $ToolLocalPath -Force
+            if ($?) { Remove-Item $ToolLocalPath -Force }
         }
-    } else {
-        $FailedToDownloadList.Add($ToolName) | Out-Null
-    }    
+    } else { $FailedToDownloadList.Add($ToolName) | Out-Null }    
 }
 # Compress all the files that downloaded and delete the origin after the compression
 function Compress-All {
@@ -204,9 +227,12 @@ function Select-Tools {
     # Show the list of the optional GUI tools
     [GUITools].GetEnumNames() | ForEach-Object {
         $output = "{2,-3}{1,-2} {0}" -f $_, "--", [int]([GUITools]::$_)
-        write-host $output -ForegroundColor Yellow
+        if (([int]([GUITools]::$_)) -gt $MaxIndexOfSmallTools) { write-host $output -ForegroundColor DarkYellow }
+        else { write-host $output -ForegroundColor Yellow }
     }
-    write-host "`nPress [Enter] to download only CLI audit Tools, or [ALL] to download all tools" -ForegroundColor Yellow
+    write-host "`nPress [Enter] to download only CLI audit Tools" -ForegroundColor Yellow
+    write-host "Press [All] to download the optional GUI tools" -ForegroundColor Yellow
+    Write-Host "In addition, you can choose to download the heavy tools (the darker ones) - Skybox, nessus and runecast. To do so, type [HEAVY]" -ForegroundColor Yellow
     write-host "Alternatively, you can enter specific numbers of tools you want to download (make sure you separate them by a comma)" -ForegroundColor Yellow
     $userInput = Read-Host
     
@@ -214,8 +240,8 @@ function Select-Tools {
     if (![string]::IsNullOrEmpty($userInput)) {
         # Remove White spaces
         $userinput = $userInput -replace "\s", ""
-        # Enter all CLI numbers
-        if ($userInput -eq "ALL") { [int[]]$global:picks = @(1..[GUITools].GetEnumNames().Count); return }
+        if ($userInput -eq "ALL") { [int[]]$global:picks = @(1..$MaxIndexOfSmallTools); return }
+        if ($userInput -eq "HEAVY") { [int[]]$global:picks = @(1..[GUITools].GetEnumNames().Count); return }
         # Make sure that user input is only numbers seperated by comma
         elseif ($userInput -notmatch '^(\d+,)*\d+$') {
             Write-Error -Category InvalidArgument
@@ -233,7 +259,10 @@ function Select-Tools {
 Select-Tools
 if (Get-Tools) {
     Compress-All
-    Write-Host "`nCongrats, you have a zip file in the directory you selected. Insert the zip file into your network" -ForegroundColor Green
+    Write-Host "`nCongrats, you have a zip file in the directory you selected." -ForegroundColor Green
+    Write-Host "Insert the zip file into your network and extract it." -ForegroundColor Green
+    Write-Host "After you expand the zip file in your network, run the CyberGatito.ps1 file" -ForegroundColor Green
+    
     Write-Host "These files downloaded successfuly:" -ForegroundColor Green    
     $DownloadedSuccessfuly.ForEach( { Write-Host "- $_" -ForegroundColor Green })
     
