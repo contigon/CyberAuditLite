@@ -147,15 +147,30 @@ function DownloadTool {
     if ($ToolName -match '^skybox.*') {
         New-Item  -Path "$global:Root\Tools\Skybox" -ItemType "Directory" -Force | out-null
         $ToolLocalPath = "$global:Root\Tools\Skybox\$ToolEXEName"
-    }
-    elseif ($ToolEXEName -notmatch '.*\.ps..?$') {
+    } elseif ($ToolEXEName -notmatch '.*\.ps..?$') {
         New-Item  -Path "$global:Root\Tools\$ToolName"  -ItemType "Directory" -Force | out-null
         $ToolLocalPath = "$global:Root\Tools\$ToolName\$ToolEXEName"
     } else {
         $ToolLocalPath = "$global:Root\$ToolEXEName"            
     }
-
+    
     Write-Host "Downloading $ToolName from $ToolURL" -ForegroundColor Magenta
+    # Nessus download needs a special care because its a GET request, not just a file to
+    if ($ToolName -eq "Nessus") {
+        try {
+            $ToolLocalPath = "$global:Root\Tools\$ToolName\Nessus.msi"
+            $ProgressPreferenceTemp = $ProgressPreference
+            $ProgressPreference = 'SilentlyContinue'
+            Invoke-WebRequest -Uri $ToolURL -OutFile $ToolLocalPath
+            $ProgressPreference = $ProgressPreferenceTemp
+            $DownloadedSuccessfuly.Add($ToolName) | Out-Null
+        } catch {
+            Write-Host "ERROR: Couldnt download nessus" -ForegroundColor Red
+             $FailedToDownloadList.Add($ToolName) 
+            }
+        return
+    }
+
     if ( dl $ToolURL $ToolLocalPath) {
         $DownloadedSuccessfuly.Add($ToolName) | Out-Null
         # If tool is a zip file, expands the zip and remove the zip ater the expansion
