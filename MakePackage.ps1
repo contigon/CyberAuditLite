@@ -11,7 +11,7 @@ enum CLITools {
     NTDSAudit
     PingCastle
     Testimo
-    CyberGatito
+    CyberAuditLite
     CyberFunctions
     DSInternals    
 }
@@ -90,11 +90,11 @@ function DownloadTool {
         Testimo {
             $ToolURL = "https://github.com/maros17/Downloads/raw/main/TestimoAndDependecies.zip"
         }
-        CyberGatito {
-            $ToolURL = "https://raw.githubusercontent.com/maros17/GoGetCyberGatito/main/CyberGatito.ps1" 
+        CyberAuditLite {
+            $ToolURL = "https://raw.githubusercontent.com/contigon/CyberAuditLite/main/CyberAuditLite.ps1" 
         }
         CyberFunctions {
-            $ToolURL = "https://raw.githubusercontent.com/maros17/GoGetCyberGatito/main/CyberFunctions.psm1"
+            $ToolURL = "https://raw.githubusercontent.com/contigon/CyberAuditLite/main/CyberFunctions.psm1"
         }
         DSInternals {
             $ToolURL = "https://github.com/maros17/Downloads/raw/main/DSInternals.zip"
@@ -185,7 +185,7 @@ function DownloadTool {
 # Compress all the files that downloaded and delete the origin after the compression
 function Compress-All {
     $ContentToCompress = Get-ChildItem -Path $global:Root -Exclude "*.log" 
-    $ContentToCompress | Compress-Archive -DestinationPath $global:Root\CyberGatito.zip -Verbose -Force 
+    $ContentToCompress | Compress-Archive -DestinationPath $global:Root\CyberAuditLite.zip -Verbose -Force 
     $ContentToCompress | Remove-Item -Force -Recurse
 }
 function dl($url, $to) {
@@ -276,7 +276,7 @@ if (Get-Tools) {
     Compress-All
     Write-Host "`nCongrats, you have a zip file in the directory you selected." -ForegroundColor Green
     Write-Host "Insert the zip file into your network and extract it." -ForegroundColor Green
-    Write-Host "After you expand the zip file in your network, run the CyberGatito.ps1 file" -ForegroundColor Green
+    Write-Host "After you expand the zip file in your network, run the CyberAuditLite.ps1 file" -ForegroundColor Green
     
     Write-Host "These files downloaded successfuly:" -ForegroundColor Green    
     $DownloadedSuccessfuly.ForEach( { Write-Host "- $_" -ForegroundColor Green })
