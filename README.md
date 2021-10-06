@@ -9,7 +9,7 @@ which are needed for running several audit data collection tasks on Active Direc
 
 Instructions:
 1. Open Powershell console as Admin (run as admin)
-2. run the below command to download and run the building phase:
+2. Copy and run the below command to download and run the building phase:
 3. Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/contigon/CyberAuditLite/main/MakePackage.ps1')
 
 **Step 2 - CyberAuditLite.ps1**
