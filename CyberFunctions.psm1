@@ -10,11 +10,39 @@
 		Cyber Audit Tool - Helper Functions
 #>
 
-
 #Split-File C:\CyberAuditPS2020\Downloads\Nessus-8.10.0-x64.msi -PartSizeBytes 25MB
 #Join-File 
 
 Set-ExecutionPolicy -ExecutionPolicy Unrestricted
+
+
+function ShowINCD() {
+    $incd = @"                                                                        
+    
+
+   _____               _______   _       _____  _______  ______ 
+  / ____|       /\    |__   __| | |     |_   _||__   __||  ____|
+ | |           /  \      | |    | |       | |     | |   | |__   
+ | |          / /\ \     | |    | |       | |     | |   |  __|  
+ | |____  _  / ____ \  _ | |    | |____  _| |_    | |   | |____ 
+  \_____|(_)/_/    \_\(_)|_|    |______||_____|   |_|   |______|
+
+  Cyber Audit Tool (Lite Edition) 
+  INCD - Israel Cyber Directorate
+  Version: 1.1 October 2021                                                                      
+                                                                
+"@
+    Write-Host $incd -ForegroundColor Green
+}
+
+
+function ShowFileExtensions() 
+{
+    Push-Location
+    Set-Location HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced
+    Set-ItemProperty . HideFileExt "0"
+    Pop-Location
+}
 
 #Set Script directory tree variables
 if ($null -like $global:Tools) {
@@ -155,12 +183,15 @@ function checkRsat {
         }     
     }
     If ($Missing.Count -eq 0) {
-        Write-Host "[Success] Rsat is installed" -ForegroundColor Green
+        Write-Host "[Success] Windows remote server administrtaion (RSAT) found, script can continue now" -ForegroundColor Green
         Return $true
     } else {
-        Write-Host "[Failure] Rsat is not installed properly, these modules are missing: " -ForegroundColor red
+        Write-Host "[Failure] Windows remote server administrtaion (RSAT) not found,these modules are missing:" -ForegroundColor Red
         $string = $Missing -join ', '
         Write-Host $string -ForegroundColor Red
+        Write-Host "Optionally, you can run the tools directly on a windows server which has RSAT already installed" -ForegroundColor Yellow
+        Write-Host "or read help on installing RSAT on windows 10" -ForegroundColor Yellow
+        Write-Host "https://www.microsoft.com/en-us/download/details.aspx?id=45520" -ForegroundColor Yellow
         return $false
     }
 }
@@ -311,35 +342,6 @@ function checkAdmin {
 function CyberBginfo () {
     . $PSScriptRoot\Bginfo64.exe $PSScriptRoot\CyberBginfo.bgi /silent /accepteula /timer:0
 } 
-
-
-function ShowINCD() {
-    $incd = @"                                                                        
-                         ..,co88oc.oo8888cc,..
-  o8o.               ..,o8889689ooo888o"88888888oooc..
-.88888             .o888896888".88888888o'?888888888889ooo....
-a888P          ..c6888969""..,"o888888888o.?8888888888"".ooo8888oo.
-088P        ..atc88889"".,oo8o.86888888888o 88988889",o888888888888.
-888t  ...coo688889"'.ooo88o88b.'86988988889 8688888'o8888896989^888o
- 888888888888"..ooo888968888888  "9o688888' "888988 8888868888'o88888
-  ""G8889""'ooo888888888888889 .d8o9889""'   "8688o."88888988"o888888o .
-           o8888'""""""""""'   o8688"          88868. 888888.68988888"o8o.
-           88888o.              "8888ooo.        '8888. 88888.8898888o"888o.
-           "888888'               "888888'          '""8o"8888.8869888oo8888o .
-      . :.:::::::::::.: .     . :.::::::::.: .   . : ::.:."8888 "888888888888o
-                                                        :..8888,. "88888888888.
-                                                        .:o888.o8o.  "866o9888o
-                                                         :888.o8888.  "88."89".
-                                                        . 89  888888    "88":.
-                   CyberAuditTool [C.A.T]                 :.     '8888o
-                 Israel Cyber Directorate                .       "8888..
-                   Prime Ministers Office                          888888o.
-                     V1.1 (01-03-2021)                              "888889,
-                                                             . : :.:::::::.: :.
-
-"@
-    Write-Host $incd -ForegroundColor Green
-}
 
 #Disable Firewall,Defender real time
 function DisableFirewall() {

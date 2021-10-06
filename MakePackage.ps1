@@ -1,4 +1,4 @@
-<#
+﻿<#
 .DESCRIPTION
     
 .NOTES
@@ -6,12 +6,35 @@
     Dont forget to set $ToolURL to the URL of the tool's download link
 #>
 
+
+function ShowINCD() {
+    $incd = @"                                                                        
+    
+
+   _____               _______   _       _____  _______  ______ 
+  / ____|       /\    |__   __| | |     |_   _||__   __||  ____|
+ | |           /  \      | |    | |       | |     | |   | |__   
+ | |          / /\ \     | |    | |       | |     | |   |  __|  
+ | |____  _  / ____ \  _ | |    | |____  _| |_    | |   | |____ 
+  \_____|(_)/_/    \_\(_)|_|    |______||_____|   |_|   |______|
+
+  Cyber Audit Tool (Lite Edition) 
+  INCD - Israel Cyber Directorate
+  Version: 1.1 October 2021                                                                      
+                                                                
+"@
+    Write-Host $incd -ForegroundColor Green
+}
+
+CLS
+ShowINCD
+
 enum CLITools {
     Goddi = 1
     NTDSAudit
     PingCastle
     Testimo
-    CyberGatito
+    CyberAuditLite
     CyberFunctions
     DSInternals    
 }
@@ -32,13 +55,13 @@ enum GUITools{
 $MaxIndexOfSmallTools = [int]([GUITools]::EverythingSearch)
 start-Transcript -path "$env:USERPROFILE\Documents\CyberAudit\MakePackage.Log" -Force -append | Out-Null
 
-# Sets a list for the tools downloaded successful and for the tool failed to download
+# Sets a list for the tools downloaded successfuly and for tools that failed to download
 # It's only for showing to user the status of the download at the end of the script
 $FailedToDownloadList = [System.Collections.ArrayList]::new()
 $DownloadedSuccessfuly = [System.Collections.ArrayList]::new()
 function Get-Tools {
 
-    <#
+<#
 .SYNOPSIS
 Check the tools in [CLITools] enum and the selected tools in $picks of [GUITools] enum, and download them with dl function
 
@@ -47,7 +70,7 @@ General notes
 #>
     $global:Root = Get-Folder -EnsureEmpty
 
-    Write-Host "`n`nTools that will be downloaded are: " -ForegroundColor Yellow
+    Write-Host "Tools that will be downloaded are:" -ForegroundColor Yellow
     foreach ($ToolName in [CLITools].GetEnumNames()) {
         Write-Host "- $ToolName" -ForegroundColor Yellow
     }
@@ -56,7 +79,7 @@ General notes
             Write-Host "- $name" -ForegroundColor Yellow
         })
 
-    Write-Host "`nStarting downloading..." -ForegroundColor Magenta
+    Write-Host "Start downloading tools..." -ForegroundColor Magenta
     # Download CLI Tools
     foreach ($ToolName in [CLITools].GetEnumNames()) {
         DownloadTool $ToolName
@@ -88,16 +111,16 @@ function DownloadTool {
             $NeedExpansion = $true
         }
         Testimo {
-            $ToolURL = "https://github.com/maros17/Downloads/raw/main/TestimoAndDependecies.zip"
+            $ToolURL = "https://github.com/contigon/Downloads/raw/master/TestimoAndDependecies.zip"
         }
-        CyberGatito {
-            $ToolURL = "https://raw.githubusercontent.com/maros17/GoGetCyberGatito/main/CyberGatito.ps1" 
+        CyberAuditLite {
+            $ToolURL = "https://raw.githubusercontent.com/contigon/CyberAuditLite/main/CyberAuditLite.ps1" 
         }
         CyberFunctions {
-            $ToolURL = "https://raw.githubusercontent.com/maros17/GoGetCyberGatito/main/CyberFunctions.psm1"
+            $ToolURL = "https://raw.githubusercontent.com/contigon/CyberAuditLite/main/CyberFunctions.psm1"
         }
         DSInternals {
-            $ToolURL = "https://github.com/maros17/Downloads/raw/main/DSInternals.zip"
+            $ToolURL = "https://github.com/MichaelGrafnetter/DSInternals/releases/download/v4.4.1/DSInternals_v4.4.1.zip"
         }
         Putty {
             $ToolURL = "https://the.earth.li/~sgtatham/putty/latest/w64/putty.exe"
@@ -185,7 +208,7 @@ function DownloadTool {
 # Compress all the files that downloaded and delete the origin after the compression
 function Compress-All {
     $ContentToCompress = Get-ChildItem -Path $global:Root -Exclude "*.log" 
-    $ContentToCompress | Compress-Archive -DestinationPath $global:Root\CyberGatito.zip -Verbose -Force 
+    $ContentToCompress | Compress-Archive -DestinationPath $global:Root\CyberAuditLite.zip -Verbose -Force 
     $ContentToCompress | Remove-Item -Force -Recurse
 }
 function dl($url, $to) {
@@ -196,7 +219,7 @@ function dl($url, $to) {
         $wc.Headers.Add('User-Agent', (Get-UserAgent))
         $wc.downloadFile($url, $to)
     } catch {
-        Write-Host "ERROR: Couldnt download from $url" -ForegroundColor Red
+        Write-Host "ERROR: download from $url failed" -ForegroundColor Red
         $success = $false
     }
     return $success
@@ -223,11 +246,11 @@ Function Get-Folder {
     $Topmost.TopMost = $True
     $Topmost.MinimizeBox = $True
     if ( $FolderBrowserDialog.ShowDialog($Topmost) -eq "Cancel")
-    { Write-Error "ERROR: Cannot continue without a folder" -ErrorAction Stop }
+    { Write-Error "ERROR: Cannot continue without selecting an empty folder" -ErrorAction Stop }
     while (($EnsureEmpty) -and (Get-ChildItem $FolderBrowserDialog.SelectedPath -Force -Recurse)) {
         Write-Host "ERROR: Folder must be empty!" -ForegroundColor Red
         if ( $FolderBrowserDialog.ShowDialog($Topmost) -eq "Cancel")
-        { Write-Error "ERROR: Cannot continue without a folder" -ErrorAction Stop }
+        { Write-Error "ERROR: Cannot continue without selecting an empty folder" -ErrorAction Stop }
     }
     return $FolderBrowserDialog.SelectedPath
 }
@@ -235,28 +258,33 @@ Function Get-Folder {
 # Show a menu that details the tools that will be downloaded, and offer additional tools to download
 function Select-Tools {
     # Show to user the tools that will be downloaded
-    Write-host "`nThe script will download the next tools and compress them into a ZIP file:`n" -ForegroundColor Yellow
+    Write-host "The script will download the tools needed for the audit and compress them as a ZIP file" -ForegroundColor Yellow
+    Write-Host ""
+    Write-host "CLI Tools for auditing Active Directory:" -ForegroundColor Yellow
     # Show the list of the CLI tools
     [CLITools].GetEnumNames().ForEach( { Write-Host "- $_" -ForegroundColor Yellow })
-    Write-host "`nIn addition, you can choose to download these tools:`n" -ForegroundColor Yellow
+    Write-Host ""
+    Write-host "In addition, you can choose to download these other auditing software and utilities:" -ForegroundColor Yellow
     # Show the list of the optional GUI tools
     [GUITools].GetEnumNames() | ForEach-Object {
         $output = "{2,-3}{1,-2} {0}" -f $_, "--", [int]([GUITools]::$_)
         if (([int]([GUITools]::$_)) -gt $MaxIndexOfSmallTools) { write-host $output -ForegroundColor DarkYellow }
         else { write-host $output -ForegroundColor Yellow }
     }
-    write-host "`nPress [Enter] to download only CLI audit Tools" -ForegroundColor Yellow
-    write-host "Press [All] to download the optional GUI tools" -ForegroundColor Yellow
-    Write-Host "In addition, you can choose to download the heavy tools (the darker ones) - Skybox, nessus and runecast. To do so, type [HEAVY]" -ForegroundColor Yellow
-    write-host "Alternatively, you can enter specific numbers of tools you want to download (make sure you separate them by a comma)" -ForegroundColor Yellow
+    
+    Write-Host ""
+    write-host "Press [Enter] to download only CLI audit Tools" -ForegroundColor Green
+    write-host "Press [A] to download CLI And More auditing tools" -ForegroundColor Green
+    Write-Host "Press [S] to also download Skybox, nessus and runecast (this can take some time...)" -ForegroundColor Yellow
+    write-host "NOTE: Optinally download CLI tools and any optional tools by separating them by a comma (eg. 1,3,6)" -ForegroundColor Yellow
     $userInput = Read-Host
     
     # Checks userInput is not empty
     if (![string]::IsNullOrEmpty($userInput)) {
         # Remove White spaces
         $userinput = $userInput -replace "\s", ""
-        if ($userInput -eq "ALL") { [int[]]$global:picks = @(1..$MaxIndexOfSmallTools); return }
-        if ($userInput -eq "HEAVY") { [int[]]$global:picks = @(1..[GUITools].GetEnumNames().Count); return }
+        if ($userInput -eq "A") { [int[]]$global:picks = @(1..$MaxIndexOfSmallTools); return }
+        if ($userInput -eq "S") { [int[]]$global:picks = @(1..[GUITools].GetEnumNames().Count); return }
         # Make sure that user input is only numbers seperated by comma
         elseif ($userInput -notmatch '^(\d+,)*\d+$') {
             Write-Error -Category InvalidArgument
@@ -274,10 +302,8 @@ function Select-Tools {
 Select-Tools
 if (Get-Tools) {
     Compress-All
-    Write-Host "`nCongrats, you have a zip file in the directory you selected." -ForegroundColor Green
-    Write-Host "Insert the zip file into your network and extract it." -ForegroundColor Green
-    Write-Host "After you expand the zip file in your network, run the CyberGatito.ps1 file" -ForegroundColor Green
-    
+    Write-Host ""
+    Write-Host "[Finished] Zip file containing all tools is ready" -ForegroundColor Green
     Write-Host "These files downloaded successfuly:" -ForegroundColor Green    
     $DownloadedSuccessfuly.ForEach( { Write-Host "- $_" -ForegroundColor Green })
     
@@ -288,9 +314,18 @@ if (Get-Tools) {
     
     # Show the zip file in Explorer
     $null = start-Process -PassThru explorer $global:Root
-} else {
-    Write-Host "`nAn error accured, couldnt download any file" -BackgroundColor Red -ForegroundColor Black
-}
+        } else {
+            Write-Host "An error accured, couldnt download any file" -BackgroundColor Red -ForegroundColor Black
+        }
+
+    Write-Host ""
+
+    Write-Host "Isstructions:" -ForegroundColor Green
+    Write-Host "1. Extract the zip file on a windows machine connected to the domain" -ForegroundColor Green
+    Write-Host "2. open powershell console as Admin" -ForegroundColor Green
+    Write-Host "3. run the script CyberAuditLite.ps1" -ForegroundColor Green
+    Write-Host "4. wait untill script finishes runnig (this can take some time)" -ForegroundColor Green
+    Write-Host "5. All data collected will be compressed to a zip file" -ForegroundColor Green
 
 # Make the transcript folder hidden
 (Get-Item "$env:USERPROFILE\Documents\CyberAudit" -Force).Attributes += 'Hidden'
