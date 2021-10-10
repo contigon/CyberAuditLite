@@ -10,7 +10,9 @@ which are needed for running several audit data collection tasks on Active Direc
 Instructions:
 1. Open Powershell console as Admin (run as admin)
 2. Copy and run the below command to download and run the building phase:
-3. Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/contigon/CyberAuditLite/main/MakePackage.ps1')
+```powershell
+Invoke-Expression (New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/contigon/CyberAuditLite/main/MakePackage.ps1')
+```
 
 **Step 2 - CyberAuditLite.ps1**
 The CyberAuditLite tool will run the Active Directory collection tools automatically 
@@ -20,8 +22,12 @@ Instructions:
 1. Extracted the zip file computer on a windows machine connected to the audited domain network
 2. Open Powershell console as Admin (run as admin)
 3. Run the commands below to start the audit collection phase:
-4. Set-ExecutionPolicy -ExecutionPolicy Unrestricted
-5. .\CyberAuditLite.ps1
-6. You then need to supply Domain Admin credentials in order to run the collection successfully
-7. Wait untill script finishes and a zip file created with all data collected
+```powrshell
+5. Set-ExecutionPolicy -ExecutionPolicy Unrestricted
+```
+```powrshell
+.\CyberAuditLite.ps1
+```
+7. You then need to supply Domain Admin credentials in order to run the collection successfully
+8. Wait untill script finishes and a zip file created with all data collected
 
